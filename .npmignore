@@ -1,0 +1,39 @@
+# NOTE: package.json 'files' array takes precedence over .npmignore
+# This file is kept for additional exclusions
+
+# Development files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__/
+
+# CI/CD
+.github/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts that shouldn't be included
+node_modules/
+*.tgz
+
+# Misc
+.DS_Store
+Thumbs.db
+.env
+.env.*
+
+# TypeScript config (included via package.json files if needed)
+tsconfig.json

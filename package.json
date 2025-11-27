@@ -1,0 +1,68 @@
+{
+  "name": "@linkforty/mobile-sdk-react-native",
+  "version": "1.0.0",
+  "description": "React Native SDK for LinkForty - Open-source deep linking and mobile attribution platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run build",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "linkforty",
+    "deep-linking",
+    "deferred-deep-linking",
+    "mobile-attribution",
+    "react-native",
+    "universal-links",
+    "app-links",
+    "app-attribution",
+    "branch-alternative",
+    "appsflyer-alternative",
+    "adjust-alternative",
+    "self-hosted",
+    "open-source",
+    "privacy-focused"
+  ],
+  "author": "LinkForty",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/linkforty/react-native-sdk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/linkforty/react-native-sdk/issues"
+  },
+  "homepage": "https://github.com/linkforty/react-native-sdk#readme",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.3.0",
+    "react-native": ">=0.76.0"
+  },
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^2.2.0",
+    "react-native-device-info": "^15.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.1.0",
+    "typescript": "^5.9.0"
+  },
+  "files": [
+    "dist/**/*",
+    "src/**/*",
+    "examples/**/*",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}
