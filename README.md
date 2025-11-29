@@ -22,8 +22,8 @@ yarn add @linkforty/react-native-sdk
 
 ### Requirements
 
-- React Native >= 0.76.0
-- React >= 18.3.0
+- React Native >= 0.64.0
+- React >= 17.0.0
 - Node.js >= 20.0.0
 
 ### Additional Dependencies
