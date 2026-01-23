@@ -15,9 +15,9 @@ Official React Native SDK for [LinkForty](https://github.com/linkforty/core) - O
 ## Installation
 
 ```bash
-npm install @linkforty/react-native-sdk
+npm i @linkforty/mobile-sdk-react-native
 # or
-yarn add @linkforty/react-native-sdk
+yarn add @linkforty/mobile-sdk-react-native
 ```
 
 ### Requirements
@@ -104,7 +104,7 @@ cd ios && pod install
 ## Quick Start
 
 ```typescript
-import LinkForty from '@linkforty/react-native-sdk';
+import LinkForty from '@linkforty/mobile-sdk-react-native';
 
 // Initialize SDK (call in App.tsx or index.js)
 await LinkForty.init({
