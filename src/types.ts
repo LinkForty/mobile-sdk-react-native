@@ -60,8 +60,12 @@ export interface DeepLinkData {
     term?: string;
     content?: string;
   };
-  /** Custom query parameters */
+  /** Custom parameters (from URL query params on direct links, or from link configuration on deferred links) */
   customParameters?: Record<string, string>;
+  /** In-app destination path (e.g., '/video/123') */
+  deepLinkPath?: string;
+  /** Custom URI scheme (e.g., 'myapp') */
+  appScheme?: string;
   /** Click timestamp */
   clickedAt?: string;
   /** Link ID */
@@ -110,3 +114,10 @@ export type DeferredDeepLinkCallback = (deepLinkData: DeepLinkData | null) => vo
  * Callback function for direct deep links
  */
 export type DeepLinkCallback = (url: string, deepLinkData: DeepLinkData | null) => void;
+
+/**
+ * Function that resolves a LinkForty URL path to deep link data via the server.
+ * Used internally by DeepLinkHandler when the OS intercepts a LinkForty URL
+ * before the server can process the redirect.
+ */
+export type ResolveFunction = (path: string) => Promise<DeepLinkData | null>;

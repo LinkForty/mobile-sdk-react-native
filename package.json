@@ -1,6 +1,6 @@
 {
   "name": "@linkforty/mobile-sdk-react-native",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "React Native SDK for LinkForty - Open-source deep linking and mobile attribution platform",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

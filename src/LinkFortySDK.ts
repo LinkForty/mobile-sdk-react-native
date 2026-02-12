@@ -88,7 +88,9 @@ export class LinkFortySDK {
   }
 
   /**
-   * Register callback for direct deep links (existing users)
+   * Register callback for direct deep links (existing users).
+   * When a LinkForty URL is detected, the SDK will resolve it via the server
+   * to retrieve the full deep link data (custom parameters, UTM params, etc.).
    */
   onDeepLink(callback: DeepLinkCallback): void {
     if (!this.config) {
@@ -99,7 +101,19 @@ export class LinkFortySDK {
       this.deepLinkHandler = new DeepLinkHandler();
     }
 
-    this.deepLinkHandler.initialize(this.config.baseUrl, callback);
+    // Create a resolver that wraps the private apiRequest method
+    const resolveFn = async (path: string): Promise<DeepLinkData | null> => {
+      try {
+        return await this.apiRequest<DeepLinkData>(path);
+      } catch (error) {
+        if (this.config?.debug) {
+          console.log('[LinkForty] URL resolve failed:', error);
+        }
+        return null;
+      }
+    };
+
+    this.deepLinkHandler.initialize(this.config.baseUrl, callback, resolveFn);
   }
 
   /**
@@ -239,14 +253,23 @@ export class LinkFortySDK {
 
       // If attributed, store deep link data
       if (response.attributed && response.deepLinkData) {
+        // Normalize backend response to match DeepLinkData type
+        // Populate customParameters from deepLinkParameters so app developers
+        // get a consistent field regardless of direct vs deferred deep link path
+        const deepLinkData: DeepLinkData = {
+          ...response.deepLinkData as DeepLinkData,
+          customParameters: (response.deepLinkData as any).deepLinkParameters
+            || (response.deepLinkData as DeepLinkData).customParameters,
+        };
+
         await AsyncStorage.setItem(
           STORAGE_KEYS.INSTALL_DATA,
-          JSON.stringify(response.deepLinkData)
+          JSON.stringify(deepLinkData)
         );
 
         // Call deferred deep link callback if registered
         if (this.deferredDeepLinkCallback) {
-          this.deferredDeepLinkCallback(response.deepLinkData as DeepLinkData);
+          this.deferredDeepLinkCallback(deepLinkData);
         }
 
         if (this.config.debug) {

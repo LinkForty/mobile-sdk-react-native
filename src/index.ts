@@ -23,4 +23,5 @@ export type {
   EventData,
   DeferredDeepLinkCallback,
   DeepLinkCallback,
+  ResolveFunction,
 } from './types';
