@@ -157,16 +157,23 @@ export class LinkFortySDK {
    * Create a new short link via the LinkForty API.
    *
    * Requires an API key to be configured in the SDK init options.
+   * When `templateId` is omitted, uses the SDK endpoint which auto-selects
+   * the organization's default template and returns the full URL.
    *
    * @example
    * ```ts
+   * // Simple — server auto-selects template
+   * const result = await LinkFortySDK.createLink({
+   *   deepLinkParameters: { route: 'VIDEO_VIEWER', id: 'video-uuid' },
+   *   title: 'My Video',
+   * });
+   *
+   * // Explicit — specify template
    * const result = await LinkFortySDK.createLink({
    *   templateId: 'uuid-of-template',
    *   templateSlug: 'ToQs',
    *   deepLinkParameters: { route: 'VIDEO_VIEWER', id: 'video-uuid' },
-   *   title: 'My Video',
    * });
-   * // result.url → 'https://go.example.com/ToQs/abc123'
    * ```
    */
   async createLink(options: CreateLinkOptions): Promise<CreateLinkResult> {
@@ -178,10 +185,11 @@ export class LinkFortySDK {
       throw new Error('API key required to create links. Pass apiKey in init().');
     }
 
-    const body: Record<string, unknown> = {
-      templateId: options.templateId,
-    };
+    const body: Record<string, unknown> = {};
 
+    if (options.templateId) {
+      body.templateId = options.templateId;
+    }
     if (options.deepLinkParameters) {
       body.deepLinkParameters = options.deepLinkParameters;
     }
@@ -198,16 +206,32 @@ export class LinkFortySDK {
       body.utmParameters = options.utmParameters;
     }
 
-    const response = await this.apiRequest<{ id: string; short_code: string }>(
-      '/api/links',
+    // Use the simplified SDK endpoint when no templateId is provided
+    const useSimplifiedEndpoint = !options.templateId;
+    const endpoint = useSimplifiedEndpoint ? '/api/sdk/v1/links' : '/api/links';
+
+    const response = await this.apiRequest<{ id: string; short_code: string; url?: string; shortCode?: string; linkId?: string }>(
+      endpoint,
       {
         method: 'POST',
         body: JSON.stringify(body),
       },
     );
 
+    // The SDK endpoint returns { url, shortCode, linkId } directly
+    if (useSimplifiedEndpoint && response.url) {
+      return {
+        url: response.url,
+        shortCode: response.shortCode || response.short_code,
+        linkId: response.linkId || response.id,
+      };
+    }
+
+    // The dashboard endpoint returns { id, short_code, ... } — build URL from parts
     const shortCode = response.short_code;
-    const url = `${this.config.baseUrl}/${options.templateSlug}/${shortCode}`;
+    const url = options.templateSlug
+      ? `${this.config.baseUrl}/${options.templateSlug}/${shortCode}`
+      : `${this.config.baseUrl}/${shortCode}`;
 
     if (this.config.debug) {
       console.log('[LinkForty] Created link:', url);

@@ -123,13 +123,17 @@ export type DeepLinkCallback = (url: string, deepLinkData: DeepLinkData | null) 
 export type ResolveFunction = (path: string) => Promise<DeepLinkData | null>;
 
 /**
- * Options for creating a new short link via the LinkForty API
+ * Options for creating a new short link via the LinkForty API.
+ *
+ * When `templateId` and `templateSlug` are omitted the SDK uses
+ * `POST /api/sdk/v1/links` which auto-selects the organization's
+ * default template and returns the full URL server-side.
  */
 export interface CreateLinkOptions {
-  /** Template ID (UUID) — required by the API */
-  templateId: string;
-  /** Template slug — used to construct the full shareable URL */
-  templateSlug: string;
+  /** Template ID (UUID) — optional; auto-selected when omitted */
+  templateId?: string;
+  /** Template slug — only needed when templateId is provided (for URL construction) */
+  templateSlug?: string;
   /** Custom parameters embedded in the link (e.g., { route: 'VIDEO_VIEWER', id: '...' }) */
   deepLinkParameters?: Record<string, string>;
   /** Link title (for internal reference) */
