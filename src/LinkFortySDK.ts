@@ -310,7 +310,7 @@ export class LinkFortySDK {
       // Parse screen resolution (e.g., "1080x1920" -> [1080, 1920])
       const [screenWidth, screenHeight] = fingerprint.screenResolution
         .split('x')
-        .map(Number);
+        .map((v) => Math.round(Number(v)));
 
       // Convert attribution window from days to hours
       const attributionWindowHours = (this.config.attributionWindow || 7) * 24;

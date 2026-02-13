@@ -15,11 +15,12 @@ export class FingerprintCollector {
     const timezone = this.getTimezone();
     const language = this.getLanguage();
 
+    // Round dimensions — Android returns floats (e.g. 434.717) but the server expects integers
     const fingerprint: DeviceFingerprint = {
       userAgent: await DeviceInfo.getUserAgent(),
       timezone,
       language,
-      screenResolution: `${width}x${height}`,
+      screenResolution: `${Math.round(width)}x${Math.round(height)}`,
       platform: Platform.OS,
       deviceModel: await DeviceInfo.getModel(),
       osVersion: await DeviceInfo.getSystemVersion(),
@@ -35,18 +36,21 @@ export class FingerprintCollector {
   static async generateQueryParams(): Promise<string> {
     const fingerprint = await this.collect();
 
-    const params = new URLSearchParams({
+    // Build query string manually — URLSearchParams is not reliable in Hermes
+    const params: Record<string, string> = {
       ua: fingerprint.userAgent,
       tz: fingerprint.timezone,
       lang: fingerprint.language,
       screen: fingerprint.screenResolution,
       platform: fingerprint.platform,
-      ...(fingerprint.deviceModel && { model: fingerprint.deviceModel }),
-      ...(fingerprint.osVersion && { os: fingerprint.osVersion }),
-      ...(fingerprint.appVersion && { app_version: fingerprint.appVersion }),
-    });
+    };
+    if (fingerprint.deviceModel) params.model = fingerprint.deviceModel;
+    if (fingerprint.osVersion) params.os = fingerprint.osVersion;
+    if (fingerprint.appVersion) params.app_version = fingerprint.appVersion;
 
-    return params.toString();
+    return Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join('&');
   }
 
   /**

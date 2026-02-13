@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.3] - 2026-02-12
+### Fixed
+- Replaced `new URL()` and `URLSearchParams` usage with manual string parsing — `URL.pathname` is not implemented in React Native's Hermes engine, which caused `parseURL()` to crash silently and skip server-side deep link resolution entirely
+- Rounded screen dimensions to integers in `FingerprintCollector` — Android's `Dimensions.get('window')` returns floats (e.g. `434.717`) which caused PostgreSQL INSERT errors on INTEGER columns in the install endpoint
+
 ## [1.1.2] - 2026-02-12
 ### Added
 - `createLink()` method for creating short links programmatically from mobile apps via the LinkForty API
