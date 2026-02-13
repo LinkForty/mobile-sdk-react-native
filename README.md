@@ -4,20 +4,19 @@ Official React Native SDK for [LinkForty](https://github.com/linkforty/core) - O
 
 ## Features
 
-- ✅ **Deferred Deep Linking** - Route new users to specific content after install
-- ✅ **Direct Deep Linking** - Handle Universal Links (iOS) and App Links (Android)
-- ✅ **Probabilistic Attribution** - Match installs to clicks with 70%+ confidence
-- ✅ **Event Tracking** - Track in-app events with attribution
-- ✅ **Privacy-Focused** - No persistent device IDs required
-- ✅ **TypeScript Support** - Full type definitions included
-- ✅ **Works with Core & Cloud** - Compatible with self-hosted and Cloud instances
+- **Direct Deep Linking** - Handle Universal Links (iOS) and App Links (Android) with automatic server-side resolution
+- **Deferred Deep Linking** - Route new users to specific content after install
+- **Link Creation** - Create short links programmatically from your app
+- **Probabilistic Attribution** - Match installs to clicks via device fingerprinting
+- **Event Tracking** - Track in-app events with attribution
+- **Privacy-Focused** - No persistent device IDs required
+- **TypeScript Support** - Full type definitions included
+- **Works with Core & Cloud** - Compatible with self-hosted and Cloud instances
 
 ## Installation
 
 ```bash
-npm i @linkforty/mobile-sdk-react-native
-# or
-yarn add @linkforty/mobile-sdk-react-native
+npm install @linkforty/mobile-sdk-react-native
 ```
 
 ### Requirements
@@ -26,9 +25,7 @@ yarn add @linkforty/mobile-sdk-react-native
 - React >= 17.0.0
 - Node.js >= 20.0.0
 
-### Additional Dependencies
-
-This SDK requires the following peer dependencies:
+### Peer Dependencies
 
 ```bash
 npm install @react-native-async-storage/async-storage react-native-device-info
@@ -44,16 +41,15 @@ cd ios && pod install
 
 2. Configure Universal Links in Xcode:
    - Open your project in Xcode
-   - Select your app target → Signing & Capabilities
+   - Select your app target > Signing & Capabilities
    - Add "Associated Domains" capability
-   - Add domain: `applinks:go.yourdomain.com` (replace with your LinkForty or custom domain)
+   - Add domain: `applinks:go.yourdomain.com` (replace with your LinkForty domain)
 
-3. Create AASA file on your server at:
+3. Host an Apple App Site Association (AASA) file at:
    ```
    https://go.yourdomain.com/.well-known/apple-app-site-association
    ```
 
-   Example AASA file:
    ```json
    {
      "applinks": {
@@ -70,7 +66,7 @@ cd ios && pod install
 
 ### Android Setup
 
-1. Configure App Links in `android/app/src/main/AndroidManifest.xml`:
+1. Add an App Links intent filter in `android/app/src/main/AndroidManifest.xml`:
 
 ```xml
 <activity android:name=".MainActivity">
@@ -84,12 +80,11 @@ cd ios && pod install
 </activity>
 ```
 
-2. Create Digital Asset Links file on your server at:
+2. Host a Digital Asset Links file at:
    ```
    https://go.yourdomain.com/.well-known/assetlinks.json
    ```
 
-   Example assetlinks.json:
    ```json
    [{
      "relation": ["delegate_permission/common.handle_all_urls"],
@@ -101,187 +96,223 @@ cd ios && pod install
    }]
    ```
 
+3. Ensure `MainActivity` preserves the Intent for React Native. In `MainActivity.kt`:
+
+```kotlin
+override fun onNewIntent(intent: Intent) {
+    setIntent(intent) // Required for React Native's Linking.getInitialURL()
+    super.onNewIntent(intent)
+}
+```
+
+> **Note:** If you use other SDKs that consume Intent data (e.g., CleverTap), make sure they receive a **copy** of the URI in `onCreate` rather than consuming the original Intent, otherwise `Linking.getInitialURL()` may return `null`.
+
 ## Quick Start
 
 ```typescript
 import LinkForty from '@linkforty/mobile-sdk-react-native';
 
-// Initialize SDK (call in App.tsx or index.js)
+// 1. Initialize the SDK (call once at app startup)
 await LinkForty.init({
   baseUrl: 'https://go.yourdomain.com',
-  apiKey: 'optional-for-cloud-users', // Optional
-  debug: __DEV__, // Enable debug logging in development
+  apiKey: 'your-api-key', // Required for createLink(), optional otherwise
+  debug: __DEV__,
 });
 
-// Handle deferred deep links (new installs)
-LinkForty.onDeferredDeepLink((deepLinkData) => {
-  if (deepLinkData) {
-    // User clicked a link before installing
-    console.log('Deferred deep link:', deepLinkData);
+// 2. Handle direct deep links (user taps a link while app is installed)
+LinkForty.onDeepLink((url, data) => {
+  if (data?.customParameters) {
+    const { route, id } = data.customParameters;
+    // Navigate to the target screen
+    navigation.navigate(route, { id });
+  }
+});
 
-    // Navigate to specific content
-    navigation.navigate('Product', {
-      id: deepLinkData.utmParameters?.content
-    });
+// 3. Handle deferred deep links (user installs app after tapping a link)
+LinkForty.onDeferredDeepLink((data) => {
+  if (data?.customParameters) {
+    const { route, id } = data.customParameters;
+    navigation.navigate(route, { id });
   } else {
-    // Organic install (no link clicked)
-    console.log('Organic install');
+    console.log('Organic install — no link clicked');
   }
-});
-
-// Handle direct deep links (existing users)
-LinkForty.onDeepLink((url, deepLinkData) => {
-  console.log('Deep link opened:', url, deepLinkData);
-
-  if (deepLinkData) {
-    // Navigate to specific content
-    navigation.navigate('Product', {
-      id: deepLinkData.utmParameters?.content
-    });
-  }
-});
-
-// Track in-app events
-await LinkForty.trackEvent('purchase', {
-  amount: 99.99,
-  currency: 'USD',
-  productId: 'premium_plan'
 });
 ```
 
 ## API Reference
 
-### `init(config: LinkFortyConfig): Promise<void>`
+### `init(config)`
 
-Initialize the SDK. Must be called before using any other methods.
-
-**Parameters:**
-
-- `config.baseUrl` (string, required) - Base URL of your LinkForty instance
-- `config.apiKey` (string, optional) - API key for Cloud authentication
-- `config.debug` (boolean, optional) - Enable debug logging
-- `config.attributionWindow` (number, optional) - Attribution window in days (default: 7)
-
-**Example:**
+Initialize the SDK. Must be called before any other method.
 
 ```typescript
 await LinkForty.init({
-  baseUrl: 'https://go.yourdomain.com',
-  debug: true,
-  attributionWindow: 7,
+  baseUrl: 'https://go.yourdomain.com', // Required
+  apiKey: 'your-api-key',               // Optional (required for createLink)
+  debug: true,                           // Optional (default: false)
+  attributionWindow: 7,                  // Optional, in days (default: 7)
 });
 ```
 
-### `onDeferredDeepLink(callback: (deepLinkData: DeepLinkData | null) => void): void`
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `baseUrl` | `string` | Yes | Base URL of your LinkForty instance |
+| `apiKey` | `string` | No | API key for authenticated endpoints (Cloud) |
+| `debug` | `boolean` | No | Enable debug logging |
+| `attributionWindow` | `number` | No | Attribution window in days (default: 7) |
 
-Register a callback for deferred deep links. Called when the app is launched for the first time after installation.
+---
 
-**Parameters:**
+### `onDeepLink(callback)`
 
-- `callback` - Function called with deep link data or `null` for organic installs
+Listen for direct deep links. Called when the app is opened via a Universal Link (iOS) or App Link (Android).
 
-**Example:**
+When the URL matches your LinkForty `baseUrl`, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing.
 
 ```typescript
-LinkForty.onDeferredDeepLink((deepLinkData) => {
-  if (deepLinkData) {
-    // Attributed install
-    console.log('User came from:', deepLinkData.utmParameters?.source);
+LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {
+  console.log('Link URL:', url);
+
+  if (data?.customParameters) {
+    const { route, id } = data.customParameters;
+    navigation.navigate(route, { id });
+  }
+});
+```
+
+| Callback Parameter | Type | Description |
+|--------------------|------|-------------|
+| `url` | `string` | The full URL that opened the app |
+| `data` | `DeepLinkData \| null` | Parsed link data, or `null` if parsing failed |
+
+---
+
+### `onDeferredDeepLink(callback)`
+
+Listen for deferred deep links. Called on first launch after install if the user clicked a LinkForty link before installing.
+
+```typescript
+LinkForty.onDeferredDeepLink((data: DeepLinkData | null) => {
+  if (data) {
+    // Attributed install — user clicked a link before installing
+    console.log('Came from:', data.utmParameters?.source);
+    const { route, id } = data.customParameters || {};
+    if (route) navigation.navigate(route, { id });
   } else {
-    // Organic install
+    // Organic install or attribution failed
     console.log('Organic install');
   }
 });
 ```
 
-### `onDeepLink(callback: (url: string, deepLinkData: DeepLinkData | null) => void): void`
+| Callback Parameter | Type | Description |
+|--------------------|------|-------------|
+| `data` | `DeepLinkData \| null` | Attributed link data, or `null` for organic installs |
 
-Register a callback for direct deep links. Called when the app is opened via a Universal Link (iOS) or App Link (Android).
+---
 
-**Parameters:**
+### `createLink(options)`
 
-- `callback` - Function called with the full URL and parsed deep link data
+Create a short link programmatically. Requires `apiKey` to be set in `init()`.
 
-**Example:**
+When `templateId` is omitted, the server auto-selects your organization's default template.
 
 ```typescript
-LinkForty.onDeepLink((url, deepLinkData) => {
-  if (deepLinkData?.shortCode) {
-    // Navigate based on link
-    navigation.navigate('Details', { id: deepLinkData.shortCode });
-  }
+const result = await LinkForty.createLink({
+  deepLinkParameters: { route: 'VIDEO_VIEWER', id: 'e4338ed6-...' },
+  title: 'Check out this video',
+  utmParameters: { source: 'share', medium: 'app' },
 });
+
+console.log(result.url);       // https://go.yourdomain.com/tmpl/abc123
+console.log(result.shortCode); // abc123
+console.log(result.linkId);    // uuid
 ```
 
-### `trackEvent(name: string, properties?: Record<string, any>): Promise<void>`
+**Options:**
 
-Track an in-app event with optional properties.
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `deepLinkParameters` | `Record<string, string>` | No | Custom parameters embedded in the link (e.g., `{ route, id }`) |
+| `title` | `string` | No | Link title for internal reference |
+| `description` | `string` | No | Link description |
+| `customCode` | `string` | No | Custom short code (auto-generated if omitted) |
+| `utmParameters` | `object` | No | UTM parameters (`source`, `medium`, `campaign`, `term`, `content`) |
+| `templateId` | `string` | No | Template UUID (auto-selected if omitted) |
+| `templateSlug` | `string` | No | Template slug (only needed with `templateId`) |
 
-**Parameters:**
+**Returns:** `CreateLinkResult`
 
-- `name` - Event name (e.g., 'purchase', 'signup', 'add_to_cart')
-- `properties` - Optional event properties
+| Field | Type | Description |
+|-------|------|-------------|
+| `url` | `string` | Full shareable URL |
+| `shortCode` | `string` | The generated short code |
+| `linkId` | `string` | Link UUID |
 
-**Example:**
+---
+
+### `trackEvent(name, properties?)`
+
+Track an in-app event for attribution analytics. Requires a successful install report (automatic on first launch).
 
 ```typescript
 await LinkForty.trackEvent('purchase', {
   amount: 99.99,
   currency: 'USD',
   productId: 'premium_plan',
-  category: 'subscription'
 });
 ```
 
-### `getInstallData(): Promise<DeepLinkData | null>`
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | Yes | Event name (e.g., `'purchase'`, `'signup'`) |
+| `properties` | `Record<string, any>` | No | Arbitrary event properties |
 
-Get cached install attribution data.
+---
 
-**Returns:** Deep link data from install or `null` if not attributed
+### `getInstallData()`
 
-**Example:**
+Retrieve cached install attribution data from a previous deferred deep link.
 
 ```typescript
-const installData = await LinkForty.getInstallData();
-if (installData) {
-  console.log('Install source:', installData.utmParameters?.source);
+const data = await LinkForty.getInstallData();
+if (data) {
+  console.log('Install attributed to:', data.utmParameters?.source);
 }
 ```
 
-### `getInstallId(): Promise<string | null>`
+**Returns:** `DeepLinkData | null`
 
-Get the unique install ID for this app installation.
+---
 
-**Returns:** Install ID or `null` if not available
+### `getInstallId()`
 
-**Example:**
+Get the unique install ID assigned by the LinkForty server on first launch.
 
 ```typescript
 const installId = await LinkForty.getInstallId();
-console.log('Install ID:', installId);
 ```
 
-### `clearData(): Promise<void>`
+**Returns:** `string | null`
 
-Clear all cached SDK data. Useful for testing.
+---
 
-**Example:**
+### `clearData()`
+
+Clear all cached SDK data (install ID, attribution data, first-launch flag). The next app launch will behave as a fresh install.
 
 ```typescript
 await LinkForty.clearData();
-// App will behave as if it's a fresh install
 ```
 
-## TypeScript Types
+## Types
 
 ### `DeepLinkData`
 
 ```typescript
 interface DeepLinkData {
   shortCode: string;
-  iosUrl?: string;
-  androidUrl?: string;
-  webUrl?: string;
+  customParameters?: Record<string, string>;
   utmParameters?: {
     source?: string;
     medium?: string;
@@ -289,7 +320,11 @@ interface DeepLinkData {
     term?: string;
     content?: string;
   };
-  customParameters?: Record<string, string>;
+  iosUrl?: string;
+  androidUrl?: string;
+  webUrl?: string;
+  deepLinkPath?: string;
+  appScheme?: string;
   clickedAt?: string;
   linkId?: string;
 }
@@ -306,79 +341,94 @@ interface LinkFortyConfig {
 }
 ```
 
-## Advanced Usage
-
-### Testing Deferred Deep Linking
-
-1. **Uninstall the app** or clear all data:
-   ```typescript
-   await LinkForty.clearData();
-   ```
-
-2. **Click a LinkForty link** on your device (in Safari/Chrome, not in the app)
-
-3. **Install/Open the app** from App Store/Play Store
-
-4. **Check logs** - you should see attribution data in the `onDeferredDeepLink` callback
-
-### Using with Self-Hosted LinkForty Core
+### `CreateLinkOptions`
 
 ```typescript
-// Point to your self-hosted instance
-await LinkForty.init({
-  baseUrl: 'http://localhost:3000', // or your domain
-  debug: true,
-});
+interface CreateLinkOptions {
+  templateId?: string;
+  templateSlug?: string;
+  deepLinkParameters?: Record<string, string>;
+  title?: string;
+  description?: string;
+  customCode?: string;
+  utmParameters?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    term?: string;
+    content?: string;
+  };
+}
 ```
 
-### Using with LinkForty Cloud
+### `CreateLinkResult`
 
 ```typescript
-// Add API key for Cloud authentication
-await LinkForty.init({
-  baseUrl: 'https://go.yourdomain.com',
-  apiKey: 'your-api-key-here',
-  debug: false,
-});
+interface CreateLinkResult {
+  url: string;
+  shortCode: string;
+  linkId: string;
+}
 ```
 
-### Custom Attribution Window
+## How Deep Linking Works
 
-```typescript
-// Change attribution window to 14 days
-await LinkForty.init({
-  baseUrl: 'https://go.yourdomain.com',
-  attributionWindow: 14, // days
-});
-```
+### Direct Deep Links (App Installed)
+
+When a user taps a LinkForty URL and the app is already installed:
+
+1. The OS intercepts the URL via App Links (Android) or Universal Links (iOS) and opens your app directly
+2. The SDK receives the URL via React Native's `Linking` API
+3. The SDK calls your LinkForty server's resolve endpoint to retrieve the full link data (`customParameters`, UTM params, etc.)
+4. Your `onDeepLink` callback fires with the resolved data
+5. Your app navigates to the target screen
+
+### Deferred Deep Links (App Not Installed)
+
+When a user taps a LinkForty URL and the app is **not** installed:
+
+1. The LinkForty server records a click with the user's device fingerprint
+2. The user is redirected to the App Store / Play Store
+3. After installing and opening the app, the SDK reports the install with the device's fingerprint
+4. The server matches the fingerprint to the original click (probabilistic attribution)
+5. Your `onDeferredDeepLink` callback fires with the matched link data
+6. Your app navigates to the content the user originally clicked on
 
 ## Troubleshooting
 
 ### Deep links not working on iOS
 
-1. Verify your AASA file is accessible at `https://go.yourdomain.com/.well-known/apple-app-site-association`
-2. Check that your Team ID and Bundle ID are correct
-3. Make sure "Associated Domains" capability is added in Xcode
-4. Test with a real device (Universal Links don't work in simulator)
+1. Verify AASA file is accessible at `https://yourdomain.com/.well-known/apple-app-site-association`
+2. Check that Team ID and Bundle ID are correct in the AASA file
+3. Confirm "Associated Domains" capability is added in Xcode with `applinks:yourdomain.com`
+4. Test on a real device (Universal Links don't work in the simulator)
 
 ### Deep links not working on Android
 
-1. Verify your assetlinks.json file is accessible at `https://go.yourdomain.com/.well-known/assetlinks.json`
-2. Check that your package name and SHA256 fingerprint are correct
-3. Run `adb shell pm get-app-links com.yourapp` to verify link verification status
-4. Make sure `android:autoVerify="true"` is set in your intent filter
+1. Verify assetlinks.json is accessible at `https://yourdomain.com/.well-known/assetlinks.json`
+2. Check package name and SHA256 fingerprint are correct
+3. Run `adb shell pm get-app-links com.yourapp` to check link verification status
+4. Confirm `android:autoVerify="true"` is set in your intent filter
+5. Ensure `MainActivity` calls `setIntent(intent)` in `onNewIntent` (see [Android Setup](#android-setup))
+
+### `getInitialURL()` returns null on Android
+
+This usually means another SDK or library is consuming the Intent data before React Native reads it. In `MainActivity.kt`:
+
+- Call `setIntent(intent)` in `onNewIntent` so React Native sees the updated Intent on warm starts
+- If using CleverTap or similar SDKs, pass a **copy** of the URI to them in `onCreate` rather than the original Intent data
 
 ### Deferred deep links not attributing
 
-1. Make sure you're testing on first install (or call `clearData()`)
-2. Check debug logs for fingerprint data
-3. Verify your LinkForty backend is receiving the install event
+1. Confirm this is a first install (or call `clearData()` first)
+2. Enable `debug: true` and check logs for fingerprint data
+3. Verify your LinkForty server received the install event
 4. Ensure the click and install happen within the attribution window (default: 7 days)
-5. Try clicking the link and installing from the same network
+5. Test on the same network for best fingerprint match accuracy
 
 ### TypeScript errors
 
-Make sure you have the latest type definitions installed:
+Ensure peer dependencies are installed:
 
 ```bash
 npm install --save-dev @types/react @types/react-native
@@ -386,25 +436,18 @@ npm install --save-dev @types/react @types/react-native
 
 ## Contributing
 
-Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Documentation:** Coming soon (self-hosting guide available in Core repository)
-- **Issues:** [Report on GitHub](https://github.com/linkforty/react-native-sdk/issues)
-- **Questions:** Open a GitHub Discussion or Issue
+- **Issues:** [GitHub Issues](https://github.com/linkforty/react-native-sdk/issues)
+- **Documentation:** [LinkForty Core](https://github.com/linkforty/core)
 
 ## Related Projects
 
 - [LinkForty Cloud](https://linkforty.com) - Cloud platform with dashboard and API
 - [LinkForty Core](https://github.com/linkforty/core) - Self-hosted open-source backend
-- **iOS SDK** - Native Swift SDK (planned for future release)
-- **Android SDK** - Native Kotlin SDK (planned for future release)
-
----
-
-Made with ❤️ by the LinkForty team
