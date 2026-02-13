@@ -11,6 +11,8 @@ import type {
   DeepLinkData,
   DeferredDeepLinkCallback,
   DeepLinkCallback,
+  CreateLinkOptions,
+  CreateLinkResult,
 } from './types';
 
 const STORAGE_KEYS = {
@@ -149,6 +151,73 @@ export class LinkFortySDK {
     } catch (error) {
       console.error('[LinkForty] Failed to track event:', error);
     }
+  }
+
+  /**
+   * Create a new short link via the LinkForty API.
+   *
+   * Requires an API key to be configured in the SDK init options.
+   *
+   * @example
+   * ```ts
+   * const result = await LinkFortySDK.createLink({
+   *   templateId: 'uuid-of-template',
+   *   templateSlug: 'ToQs',
+   *   deepLinkParameters: { route: 'VIDEO_VIEWER', id: 'video-uuid' },
+   *   title: 'My Video',
+   * });
+   * // result.url → 'https://go.example.com/ToQs/abc123'
+   * ```
+   */
+  async createLink(options: CreateLinkOptions): Promise<CreateLinkResult> {
+    if (!this.config) {
+      throw new Error('SDK not initialized. Call init() first.');
+    }
+
+    if (!this.config.apiKey) {
+      throw new Error('API key required to create links. Pass apiKey in init().');
+    }
+
+    const body: Record<string, unknown> = {
+      templateId: options.templateId,
+    };
+
+    if (options.deepLinkParameters) {
+      body.deepLinkParameters = options.deepLinkParameters;
+    }
+    if (options.title) {
+      body.title = options.title;
+    }
+    if (options.description) {
+      body.description = options.description;
+    }
+    if (options.customCode) {
+      body.customCode = options.customCode;
+    }
+    if (options.utmParameters) {
+      body.utmParameters = options.utmParameters;
+    }
+
+    const response = await this.apiRequest<{ id: string; short_code: string }>(
+      '/api/links',
+      {
+        method: 'POST',
+        body: JSON.stringify(body),
+      },
+    );
+
+    const shortCode = response.short_code;
+    const url = `${this.config.baseUrl}/${options.templateSlug}/${shortCode}`;
+
+    if (this.config.debug) {
+      console.log('[LinkForty] Created link:', url);
+    }
+
+    return {
+      url,
+      shortCode,
+      linkId: response.id,
+    };
   }
 
   /**

@@ -121,3 +121,41 @@ export type DeepLinkCallback = (url: string, deepLinkData: DeepLinkData | null) 
  * before the server can process the redirect.
  */
 export type ResolveFunction = (path: string) => Promise<DeepLinkData | null>;
+
+/**
+ * Options for creating a new short link via the LinkForty API
+ */
+export interface CreateLinkOptions {
+  /** Template ID (UUID) — required by the API */
+  templateId: string;
+  /** Template slug — used to construct the full shareable URL */
+  templateSlug: string;
+  /** Custom parameters embedded in the link (e.g., { route: 'VIDEO_VIEWER', id: '...' }) */
+  deepLinkParameters?: Record<string, string>;
+  /** Link title (for internal reference) */
+  title?: string;
+  /** Link description */
+  description?: string;
+  /** Custom short code (auto-generated if omitted) */
+  customCode?: string;
+  /** UTM parameters */
+  utmParameters?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    term?: string;
+    content?: string;
+  };
+}
+
+/**
+ * Result of creating a short link
+ */
+export interface CreateLinkResult {
+  /** Full shareable URL (e.g., 'https://go.example.com/tmpl/abc123') */
+  url: string;
+  /** The generated short code */
+  shortCode: string;
+  /** Link UUID */
+  linkId: string;
+}

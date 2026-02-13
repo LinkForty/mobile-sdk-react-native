@@ -24,4 +24,6 @@ export type {
   DeferredDeepLinkCallback,
   DeepLinkCallback,
   ResolveFunction,
+  CreateLinkOptions,
+  CreateLinkResult,
 } from './types';
