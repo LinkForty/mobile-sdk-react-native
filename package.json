@@ -1,6 +1,6 @@
 {
   "name": "@linkforty/mobile-sdk-react-native",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "React Native SDK for LinkForty - Open-source deep linking and mobile attribution platform",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -45,7 +45,6 @@
     "react-native": ">=0.64.0"
   },
   "dependencies": {
-    "@linkforty/mobile-sdk-react-native": "file:linkforty-mobile-sdk-react-native-1.1.2.tgz",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "react-native-device-info": "^15.0.0"
   },

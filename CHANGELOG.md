@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-02-13
+### Fixed
+- Removed accidental self-referencing `file:` dependency in published package that prevented `npm install` from working
+
 ## [1.1.3] - 2026-02-12
 ### Fixed
 - Replaced `new URL()` and `URLSearchParams` usage with manual string parsing — `URL.pathname` is not implemented in React Native's Hermes engine, which caused `parseURL()` to crash silently and skip server-side deep link resolution entirely
