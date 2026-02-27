@@ -30,12 +30,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/linkforty/react-native-sdk.git"
+    "url": "https://github.com/LinkForty/mobile-sdk-react-native.git"
   },
   "bugs": {
-    "url": "https://github.com/linkforty/react-native-sdk/issues"
+    "url": "https://github.com/LinkForty/mobile-sdk-react-native/issues"
   },
-  "homepage": "https://github.com/linkforty/react-native-sdk#readme",
+  "homepage": "https://github.com/LinkForty/mobile-sdk-react-native#readme",
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
