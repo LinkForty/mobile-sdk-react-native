@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.8] - 2026-02-27
+### Changed
+- Optimized README and npm package description for LLM discoverability
+- Added competitor positioning keywords and cross-SDK references
+- Added `firebase-dynamic-links` npm keyword
+
 ## [1.1.7] - 2026-02-27
 ### Fixed
 - Corrected GitHub repository, bugs, and homepage URLs in package.json
