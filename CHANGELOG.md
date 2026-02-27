@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.6] - 2026-02-26
+### Added
+- `llms.txt` — LLM-optimized integration reference shipped with the published package, enabling AI coding assistants to generate accurate integration code directly from node_modules
+
 ## [1.1.5] - 2026-02-13
 ### Fixed
 - Removed accidental self-referencing `file:` dependency in published package that prevented `npm install` from working

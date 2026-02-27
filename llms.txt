@@ -1,0 +1,343 @@
+# @linkforty/mobile-sdk-react-native
+
+> React Native SDK for LinkForty — an open-source mobile attribution and deep link management platform. This SDK handles deep linking, deferred deep linking (install attribution), in-app event tracking, and link creation. Works with LinkForty Cloud (linkforty.com) or self-hosted Core instances.
+
+## Installation
+
+```bash
+npm install @linkforty/mobile-sdk-react-native
+```
+
+Peer dependencies are included automatically:
+- `@react-native-async-storage/async-storage` — persists install ID and attribution data
+- `react-native-device-info` — collects device fingerprint for attribution
+
+For iOS, run pod install after:
+
+```bash
+cd ios && pod install
+```
+
+## TypeScript Types
+
+```typescript
+interface LinkFortyConfig {
+  /** Base URL of your LinkForty instance (e.g., 'https://go.yourdomain.com') */
+  baseUrl: string;
+  /** API key — only needed if calling createLink() */
+  apiKey?: string;
+  /** Enable debug logging (default: false) */
+  debug?: boolean;
+  /** Attribution window in days (default: 7) */
+  attributionWindow?: number;
+}
+
+interface DeepLinkData {
+  shortCode: string;
+  iosUrl?: string;
+  androidUrl?: string;
+  webUrl?: string;
+  utmParameters?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    term?: string;
+    content?: string;
+  };
+  /** Custom key-value parameters set when the link was created */
+  customParameters?: Record<string, string>;
+  /** In-app destination path (e.g., '/product/123') */
+  deepLinkPath?: string;
+  /** Custom URI scheme (e.g., 'myapp') */
+  appScheme?: string;
+  clickedAt?: string;
+  linkId?: string;
+}
+
+interface CreateLinkOptions {
+  /** Template ID (UUID) — auto-selected when omitted */
+  templateId?: string;
+  /** Template slug — only needed when templateId is provided */
+  templateSlug?: string;
+  /** Custom parameters embedded in the link */
+  deepLinkParameters?: Record<string, string>;
+  title?: string;
+  description?: string;
+  /** Custom short code (auto-generated if omitted) */
+  customCode?: string;
+  utmParameters?: {
+    source?: string;
+    medium?: string;
+    campaign?: string;
+    term?: string;
+    content?: string;
+  };
+}
+
+interface CreateLinkResult {
+  /** Full shareable URL (e.g., 'https://go.example.com/tmpl/abc123') */
+  url: string;
+  shortCode: string;
+  linkId: string;
+}
+
+type DeepLinkCallback = (url: string, deepLinkData: DeepLinkData | null) => void;
+type DeferredDeepLinkCallback = (deepLinkData: DeepLinkData | null) => void;
+```
+
+## SDK API
+
+The SDK exports a singleton default export: `LinkFortySDK`.
+
+```typescript
+import LinkFortySDK from '@linkforty/mobile-sdk-react-native';
+```
+
+### init(config: LinkFortyConfig): Promise\<void\>
+
+Initialize the SDK. Must be called before any other method. Call this early in your app lifecycle (App.tsx or index.js).
+
+```typescript
+await LinkFortySDK.init({
+  baseUrl: 'https://go.yourdomain.com',
+  apiKey: 'lf_live_abc123',   // optional — only for createLink()
+  debug: __DEV__,
+  attributionWindow: 7,        // days
+});
+```
+
+### onDeepLink(callback: DeepLinkCallback): void
+
+Register a callback for direct deep links — fires when user taps a LinkForty link and the app is already installed. The SDK resolves the link server-side to get enriched data.
+
+```typescript
+LinkFortySDK.onDeepLink((url, data) => {
+  console.log('Deep link URL:', url);
+  if (data?.customParameters?.route) {
+    navigation.navigate(data.customParameters.route, {
+      id: data.customParameters.id,
+    });
+  }
+});
+```
+
+### onDeferredDeepLink(callback: DeferredDeepLinkCallback): void
+
+Register a callback for deferred deep links — fires on first app launch if the install was attributed to a link click. This enables routing users to specific content after they install.
+
+```typescript
+LinkFortySDK.onDeferredDeepLink((data) => {
+  if (data) {
+    console.log('Deferred deep link:', data.shortCode);
+    console.log('UTM source:', data.utmParameters?.source);
+    if (data.customParameters?.route === 'product') {
+      navigation.navigate('Product', { id: data.customParameters.productId });
+    }
+  }
+});
+```
+
+### trackEvent(name: string, properties?: Record\<string, any\>): Promise\<void\>
+
+Track in-app events for attribution and conversion analysis.
+
+```typescript
+await LinkFortySDK.trackEvent('purchase', {
+  orderId: 'order_123',
+  amount: 59.99,
+  currency: 'USD',
+  items: 2,
+});
+```
+
+### createLink(options: CreateLinkOptions): Promise\<CreateLinkResult\>
+
+Create a shareable LinkForty link from within the app. Requires `apiKey` in the init config. When `templateId` is omitted, the server auto-selects the organization's default template.
+
+```typescript
+const result = await LinkFortySDK.createLink({
+  deepLinkParameters: {
+    route: 'product',
+    productId: '789',
+  },
+  title: 'Check out this product!',
+  utmParameters: {
+    source: 'in_app_share',
+    medium: 'referral',
+  },
+});
+
+console.log(result.url);       // https://go.yourdomain.com/tmpl/abc12345
+console.log(result.shortCode); // abc12345
+console.log(result.linkId);    // uuid
+```
+
+### getInstallData(): Promise\<DeepLinkData | null\>
+
+Retrieve cached attribution data from the initial deferred deep link.
+
+### getInstallId(): Promise\<string | null\>
+
+Get the unique install ID assigned on first launch.
+
+### clearData(): Promise\<void\>
+
+Clear all cached SDK data (install ID, attribution, first-launch flag). Use on user logout.
+
+## iOS Platform Setup
+
+1. Open your project in Xcode.
+2. Select your target → Signing & Capabilities → + Capability → Associated Domains.
+3. Add: `applinks:go.yourdomain.com`
+4. In `AppDelegate.mm`, ensure Universal Links are forwarded (usually automatic with React Native's Linking module):
+
+```objc
+- (BOOL)application:(UIApplication *)application
+    continueUserActivity:(NSUserActivity *)userActivity
+    restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> *))restorationHandler {
+  return [RCTLinkingManager application:application
+                   continueUserActivity:userActivity
+                     restorationHandler:restorationHandler];
+}
+```
+
+5. LinkForty automatically serves `/.well-known/apple-app-site-association` from your domain.
+
+## Android Platform Setup
+
+1. Add an intent filter to `android/app/src/main/AndroidManifest.xml`:
+
+```xml
+<activity
+  android:name=".MainActivity"
+  android:launchMode="singleTask">
+
+  <!-- LinkForty App Links -->
+  <intent-filter android:autoVerify="true">
+    <action android:name="android.intent.action.VIEW" />
+    <category android:name="android.intent.category.DEFAULT" />
+    <category android:name="android.intent.category.BROWSABLE" />
+    <data android:scheme="https" android:host="go.yourdomain.com" />
+  </intent-filter>
+</activity>
+```
+
+2. In `MainActivity.java` or `MainActivity.kt`, forward new intents:
+
+```java
+@Override
+public void onNewIntent(Intent intent) {
+  super.onNewIntent(intent);
+  setIntent(intent);
+}
+```
+
+3. LinkForty automatically serves `/.well-known/assetlinks.json` from your domain.
+
+## Complete Integration Example
+
+```typescript
+// App.tsx
+import React, { useEffect } from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { Share } from 'react-native';
+import LinkFortySDK from '@linkforty/mobile-sdk-react-native';
+
+const Stack = createNativeStackNavigator();
+
+export default function App() {
+  const navigationRef = React.useRef(null);
+
+  useEffect(() => {
+    async function initLinkForty() {
+      await LinkFortySDK.init({
+        baseUrl: 'https://go.yourdomain.com',
+        apiKey: 'lf_live_abc123',
+        debug: __DEV__,
+      });
+
+      // Handle direct deep links (app already installed)
+      LinkFortySDK.onDeepLink((url, data) => {
+        if (data?.customParameters?.route) {
+          navigationRef.current?.navigate(data.customParameters.route, {
+            id: data.customParameters.id,
+          });
+        }
+      });
+
+      // Handle deferred deep links (first open after install)
+      LinkFortySDK.onDeferredDeepLink((data) => {
+        if (data?.customParameters?.route) {
+          navigationRef.current?.navigate(data.customParameters.route, {
+            id: data.customParameters.id,
+          });
+        }
+      });
+    }
+
+    initLinkForty();
+  }, []);
+
+  return (
+    <NavigationContainer ref={navigationRef}>
+      <Stack.Navigator>
+        <Stack.Screen name="Home" component={HomeScreen} />
+        <Stack.Screen name="product" component={ProductScreen} />
+        <Stack.Screen name="profile" component={ProfileScreen} />
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
+// Share a deep link
+async function shareProduct(productId: string, productName: string) {
+  const result = await LinkFortySDK.createLink({
+    deepLinkParameters: { route: 'product', productId },
+    title: productName,
+    utmParameters: { source: 'in_app_share', medium: 'referral' },
+  });
+
+  await Share.share({
+    message: `Check out ${productName}! ${result.url}`,
+    url: result.url,
+  });
+}
+
+// Track a conversion
+async function trackPurchase(orderId: string, amount: number) {
+  await LinkFortySDK.trackEvent('purchase', {
+    orderId,
+    amount,
+    currency: 'USD',
+  });
+}
+```
+
+## Testing Deep Links
+
+```bash
+# iOS Simulator
+xcrun simctl openurl booted "https://go.yourdomain.com/abc123"
+
+# Android Emulator
+adb shell am start -a android.intent.action.VIEW -d "https://go.yourdomain.com/abc123"
+
+# React Native CLI
+npx uri-scheme open "https://go.yourdomain.com/abc123" --ios
+npx uri-scheme open "https://go.yourdomain.com/abc123" --android
+```
+
+## Self-Hosted vs Cloud
+
+The only change is the `baseUrl`:
+
+```typescript
+// Cloud (managed SaaS)
+await LinkFortySDK.init({ baseUrl: 'https://go.linkforty.com' });
+
+// Self-hosted (@linkforty/core)
+await LinkFortySDK.init({ baseUrl: 'https://links.yourdomain.com' });
+```
+
+All SDK methods work identically with both.
