@@ -1,6 +1,9 @@
 # LinkForty React Native SDK
 
-Official React Native SDK for [LinkForty](https://github.com/linkforty/core) - Open-source deep linking and mobile attribution platform.
+React Native SDK for [LinkForty](https://github.com/LinkForty/core) — the open-source alternative to Branch.io, AppsFlyer OneLink, and Firebase Dynamic Links. Add deferred deep linking, mobile attribution, and smart link routing to your React Native app. Self-hosted, privacy-first, no per-click pricing.
+
+[![npm version](https://img.shields.io/npm/v/@linkforty/mobile-sdk-react-native.svg)](https://www.npmjs.com/package/@linkforty/mobile-sdk-react-native)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Features
 
@@ -442,12 +445,17 @@ Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines
 
 MIT License - see [LICENSE](LICENSE) for details.
 
+## Other SDKs
+
+| Platform | Package |
+|----------|---------|
+| Expo | [`@linkforty/mobile-sdk-expo`](https://github.com/LinkForty/mobile-sdk-expo) |
+| iOS (Swift) | [LinkFortySDK](https://github.com/LinkForty/mobile-sdk-ios) |
+| Android (Kotlin) | [LinkFortySDK](https://github.com/LinkForty/mobile-sdk-android) |
+
 ## Support
 
-- **Issues:** [GitHub Issues](https://github.com/linkforty/react-native-sdk/issues)
-- **Documentation:** [LinkForty Core](https://github.com/linkforty/core)
-
-## Related Projects
-
-- [LinkForty Cloud](https://linkforty.com) - Cloud platform with dashboard and API
-- [LinkForty Core](https://github.com/linkforty/core) - Self-hosted open-source backend
+- **Documentation:** [docs.linkforty.com](https://docs.linkforty.com)
+- **Issues:** [GitHub Issues](https://github.com/LinkForty/mobile-sdk-react-native/issues)
+- **Core Engine:** [LinkForty Core](https://github.com/LinkForty/core) — self-hosted open-source backend
+- **Cloud Platform:** [LinkForty Cloud](https://linkforty.com) — hosted SaaS with dashboard, teams, and billing
