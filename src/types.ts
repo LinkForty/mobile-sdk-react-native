@@ -150,6 +150,8 @@ export interface CreateLinkOptions {
     term?: string;
     content?: string;
   };
+  /** Identifier for the app user creating the link (enables per-user deduplication and share attribution) */
+  externalUserId?: string;
 }
 
 /**
@@ -162,4 +164,6 @@ export interface CreateLinkResult {
   shortCode: string;
   /** Link UUID */
   linkId: string;
+  /** True if an existing link was returned instead of creating a new one (per-user deduplication) */
+  deduplicated?: boolean;
 }

@@ -205,12 +205,15 @@ export class LinkFortySDK {
     if (options.utmParameters) {
       body.utmParameters = options.utmParameters;
     }
+    if (options.externalUserId) {
+      body.externalUserId = options.externalUserId;
+    }
 
     // Use the simplified SDK endpoint when no templateId is provided
     const useSimplifiedEndpoint = !options.templateId;
     const endpoint = useSimplifiedEndpoint ? '/api/sdk/v1/links' : '/api/links';
 
-    const response = await this.apiRequest<{ id: string; short_code: string; url?: string; shortCode?: string; linkId?: string }>(
+    const response = await this.apiRequest<{ id: string; short_code: string; url?: string; shortCode?: string; linkId?: string; deduplicated?: boolean }>(
       endpoint,
       {
         method: 'POST',
@@ -218,12 +221,13 @@ export class LinkFortySDK {
       },
     );
 
-    // The SDK endpoint returns { url, shortCode, linkId } directly
+    // The SDK endpoint returns { url, shortCode, linkId, deduplicated? } directly
     if (useSimplifiedEndpoint && response.url) {
       return {
         url: response.url,
         shortCode: response.shortCode || response.short_code,
         linkId: response.linkId || response.id,
+        deduplicated: response.deduplicated,
       };
     }
 
