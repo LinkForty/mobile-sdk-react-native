@@ -154,6 +154,35 @@ export class LinkFortySDK {
   }
 
   /**
+   * Track a revenue event.
+   *
+   * Convenience wrapper around `trackEvent` that sends a standardised
+   * `"revenue"` event with `revenue` and `currency` fields in the
+   * event data.  All four LinkForty SDKs (React Native, iOS, Android,
+   * Expo) use the same convention so the Events dashboard can aggregate
+   * revenue with a single query.
+   *
+   * @param amount  Non-negative revenue amount
+   * @param currency  ISO 4217 currency code (e.g. "USD")
+   * @param properties  Optional additional properties merged into event data
+   */
+  async trackRevenue(
+    amount: number,
+    currency: string,
+    properties?: Record<string, any>,
+  ): Promise<void> {
+    if (amount < 0) {
+      throw new Error('Revenue amount must be non-negative');
+    }
+
+    await this.trackEvent('revenue', {
+      ...properties,
+      revenue: amount,
+      currency,
+    });
+  }
+
+  /**
    * Create a new short link via the LinkForty API.
    *
    * Requires an API key to be configured in the SDK init options.
