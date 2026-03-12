@@ -26,6 +26,7 @@ export class LinkFortySDK {
   private deepLinkHandler: DeepLinkHandler | null = null;
   private deferredDeepLinkCallback: DeferredDeepLinkCallback | null = null;
   private installId: string | null = null;
+  private externalUserId: string | null = null;
   private initialized: boolean = false;
 
   /**
@@ -62,6 +63,25 @@ export class LinkFortySDK {
     if (config.debug) {
       console.log('[LinkForty] SDK initialized successfully');
     }
+  }
+
+  /**
+   * Set the external user ID for attribution. This ID will be attached to all
+   * links created via createLink() unless overridden per-call. Pass null to clear.
+   */
+  setExternalUserId(id: string | null): void {
+    this.externalUserId = id;
+
+    if (this.config?.debug) {
+      console.log('[LinkForty] External user ID set:', id);
+    }
+  }
+
+  /**
+   * Get the current external user ID
+   */
+  getExternalUserId(): string | null {
+    return this.externalUserId;
   }
 
   /**
@@ -234,8 +254,11 @@ export class LinkFortySDK {
     if (options.utmParameters) {
       body.utmParameters = options.utmParameters;
     }
-    if (options.externalUserId) {
-      body.externalUserId = options.externalUserId;
+
+    // Per-call externalUserId takes precedence, then fall back to SDK-level value
+    const resolvedUserId = options.externalUserId ?? this.externalUserId;
+    if (resolvedUserId) {
+      body.externalUserId = resolvedUserId;
     }
 
     // Use the simplified SDK endpoint when no templateId is provided
@@ -304,6 +327,7 @@ export class LinkFortySDK {
     ]);
 
     this.installId = null;
+    this.externalUserId = null;
 
     if (this.config?.debug) {
       console.log('[LinkForty] All data cleared');

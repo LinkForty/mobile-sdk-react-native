@@ -150,7 +150,7 @@ export interface CreateLinkOptions {
     term?: string;
     content?: string;
   };
-  /** Identifier for the app user creating the link (enables per-user deduplication and share attribution) */
+  /** External user ID — overrides the SDK-level value set via setExternalUserId() for this link only */
   externalUserId?: string;
 }
 
