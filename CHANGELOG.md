@@ -1,3 +1,9 @@
+## 1.3.0 (2026-03-17)
+
+* ci: add semantic-release with OIDC trusted publishing to npm ([8d634bc](https://github.com/LinkForty/mobile-sdk-react-native/commit/8d634bc))
+* feat: add setExternalUserId for user attribution on shared links ([deed87c](https://github.com/LinkForty/mobile-sdk-react-native/commit/deed87c))
+* feat: add trackRevenue() convenience method for standardized revenue events ([53438c2](https://github.com/LinkForty/mobile-sdk-react-native/commit/53438c2))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
