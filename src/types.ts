@@ -10,6 +10,14 @@ export interface LinkFortyConfig {
   baseUrl: string;
   /** Optional API key for Cloud authentication */
   apiKey?: string;
+  /**
+   * Public workspace token (LinkForty Cloud only). Recommended — required
+   * for organic installs (App Store discovery, social mentions, etc.) to
+   * be attributed to your workspace. Find it in the dashboard under
+   * Workspace Settings → App Token. Safe to ship in your app bundle.
+   * Format: `at_<32 hex chars>`.
+   */
+  appToken?: string;
   /** Enable debug logging */
   debug?: boolean;
   /** Custom attribution window in days (default: 7) */
