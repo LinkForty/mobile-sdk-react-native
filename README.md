@@ -118,7 +118,8 @@ import LinkForty from '@linkforty/mobile-sdk-react-native';
 // 1. Initialize the SDK (call once at app startup)
 await LinkForty.init({
   baseUrl: 'https://go.yourdomain.com',
-  apiKey: 'your-api-key', // Required for createLink(), optional otherwise
+  apiKey: 'your-api-key',         // Required for createLink(), optional otherwise
+  appToken: 'at_a1b2c3d4...',     // Recommended for Cloud — enables organic-install attribution
   debug: __DEV__,
 });
 
@@ -152,6 +153,7 @@ Initialize the SDK. Must be called before any other method.
 await LinkForty.init({
   baseUrl: 'https://go.yourdomain.com', // Required
   apiKey: 'your-api-key',               // Optional (required for createLink)
+  appToken: 'at_a1b2c3d4...',           // Optional (recommended for Cloud — enables organic-install attribution)
   debug: true,                           // Optional (default: false)
   attributionWindow: 7,                  // Optional, in days (default: 7)
 });
@@ -161,6 +163,7 @@ await LinkForty.init({
 |-----------|------|----------|-------------|
 | `baseUrl` | `string` | Yes | Base URL of your LinkForty instance |
 | `apiKey` | `string` | No | API key for authenticated endpoints (Cloud) |
+| `appToken` | `string` | No | Public workspace token. **Recommended for Cloud** — required for organic installs (App Store discovery, social mentions, etc.) to be attributed to your workspace. Find it in the dashboard under Workspace Settings → App Token. Format: `at_<32 hex chars>`. Safe to ship in your app bundle. |
 | `debug` | `boolean` | No | Enable debug logging |
 | `attributionWindow` | `number` | No | Attribution window in days (default: 7) |
 

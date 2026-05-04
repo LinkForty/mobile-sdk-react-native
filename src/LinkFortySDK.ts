@@ -387,6 +387,11 @@ export class LinkFortySDK {
             platformVersion: fingerprint.osVersion,
             deviceId: undefined, // Optional: Can add IDFA/GAID if available
             attributionWindowHours,
+            // Public workspace token; lets Cloud scope organic installs
+            // (those with no click match) to the right workspace. Omitted
+            // entirely when not configured — server treats absence as
+            // "scope organic installs to no workspace" (current behavior).
+            appToken: this.config.appToken,
           }),
         }
       );
