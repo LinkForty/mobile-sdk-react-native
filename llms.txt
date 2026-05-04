@@ -26,6 +26,14 @@ interface LinkFortyConfig {
   baseUrl: string;
   /** API key — only needed if calling createLink() */
   apiKey?: string;
+  /**
+   * Public workspace token (LinkForty Cloud only). Recommended — required
+   * for organic installs (App Store discovery, social mentions, etc.) to
+   * be attributed to your workspace. Find it in the dashboard under
+   * Workspace Settings → App Token. Format: `at_<32 hex chars>`. Safe to
+   * ship in your app bundle (workspace identifier only, not auth).
+   */
+  appToken?: string;
   /** Enable debug logging (default: false) */
   debug?: boolean;
   /** Attribution window in days (default: 7) */
@@ -101,6 +109,7 @@ Initialize the SDK. Must be called before any other method. Call this early in y
 await LinkFortySDK.init({
   baseUrl: 'https://go.yourdomain.com',
   apiKey: 'lf_live_abc123',   // optional — only for createLink()
+  appToken: 'at_a1b2c3d4...', // recommended for Cloud — enables organic-install attribution
   debug: __DEV__,
   attributionWindow: 7,        // days
 });
@@ -254,6 +263,7 @@ export default function App() {
       await LinkFortySDK.init({
         baseUrl: 'https://go.yourdomain.com',
         apiKey: 'lf_live_abc123',
+        appToken: 'at_a1b2c3d4...',
         debug: __DEV__,
       });
 
