@@ -1,3 +1,11 @@
+## 1.4.0 (2026-05-04)
+
+* ci: drop flaky 'npm install -g npm@latest' self-upgrade step (#4) ([62cbc18](https://github.com/LinkForty/mobile-sdk-react-native/commit/62cbc18)), closes [#4](https://github.com/LinkForty/mobile-sdk-react-native/issues/4) [#2](https://github.com/LinkForty/mobile-sdk-react-native/issues/2)
+* Merge pull request #2 from LinkForty/feat/app-token ([b89b060](https://github.com/LinkForty/mobile-sdk-react-native/commit/b89b060)), closes [#2](https://github.com/LinkForty/mobile-sdk-react-native/issues/2)
+* update packages ([98b32fb](https://github.com/LinkForty/mobile-sdk-react-native/commit/98b32fb))
+* docs: surface appToken in llms.txt and README ([46c277f](https://github.com/LinkForty/mobile-sdk-react-native/commit/46c277f))
+* feat: add appToken config option for Cloud organic-install attribution ([bdb7a13](https://github.com/LinkForty/mobile-sdk-react-native/commit/bdb7a13)), closes [LinkForty/cloud#76](https://github.com/LinkForty/cloud/issues/76)
+
 ## 1.3.0 (2026-03-17)
 
 * ci: add semantic-release with OIDC trusted publishing to npm ([8d634bc](https://github.com/LinkForty/mobile-sdk-react-native/commit/8d634bc))
