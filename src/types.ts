@@ -22,6 +22,51 @@ export interface LinkFortyConfig {
   debug?: boolean;
   /** Custom attribution window in days (default: 7) */
   attributionWindow?: number;
+  /**
+   * Auto-emit `screen_view` events from React Navigation state (no manual
+   * per-screen calls). Requires `navigationRef`. Off by default. When enabled,
+   * screen views flow through the normal event pipeline and carry the active
+   * deep-link attribution context (see AttributionContext), so marketers get an
+   * attributed screen-flow funnel. Apps without react-navigation are unaffected.
+   */
+  autoTrackNavigation?: boolean;
+  /**
+   * The app's React Navigation container ref (`createNavigationContainerRef()`),
+   * required when `autoTrackNavigation` is true. Typed structurally so this SDK
+   * never has a compile-time dependency on `@react-navigation/native`.
+   */
+  navigationRef?: NavigationContainerRefLike;
+}
+
+/**
+ * The slice of a React Navigation route the SDK reads. Structural — matches
+ * `@react-navigation/native`'s `getCurrentRoute()` result without importing it.
+ */
+export interface NavigationRouteLike {
+  /** The active route/screen name (used as the screen-view name) */
+  name: string;
+  /** Route params, if any (sanitized before being attached to the event) */
+  params?: Record<string, unknown>;
+}
+
+/**
+ * The slice of a React Navigation container ref the SDK uses. Structural —
+ * compatible with `@react-navigation/native`'s `NavigationContainerRef`.
+ */
+export interface NavigationContainerRefLike {
+  /**
+   * Subscribe to navigation state changes. React Navigation returns an
+   * unsubscribe function; some versions return an `{ remove }` object — both are
+   * handled by the SDK.
+   */
+  addListener: (
+    type: 'state',
+    callback: (event?: unknown) => void,
+  ) => (() => void) | { remove?: () => void } | void;
+  /** The currently-focused route, or undefined before the tree is ready */
+  getCurrentRoute: () => NavigationRouteLike | undefined;
+  /** Whether the navigation container is mounted/ready */
+  isReady?: () => boolean;
 }
 
 /**

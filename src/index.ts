@@ -14,6 +14,7 @@ export { LinkFortySDK } from './LinkFortySDK';
 export { FingerprintCollector } from './FingerprintCollector';
 export { DeepLinkHandler } from './DeepLinkHandler';
 export { AttributionContext } from './AttributionContext';
+export { NavigationTracker, sanitizeScreenParams } from './NavigationTracker';
 
 // Export types
 export type {
@@ -24,9 +25,15 @@ export type {
   EventData,
   ActiveAttribution,
   AttributionStamp,
+  NavigationRouteLike,
+  NavigationContainerRefLike,
   DeferredDeepLinkCallback,
   DeepLinkCallback,
   ResolveFunction,
   CreateLinkOptions,
   CreateLinkResult,
 } from './types';
+export type {
+  ScreenEventEmitter,
+  NavigationTrackerOptions,
+} from './NavigationTracker';

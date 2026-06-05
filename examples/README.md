@@ -21,7 +21,23 @@ Shows the minimal setup required to integrate LinkForty into a React Native app:
 
 ---
 
-### 2. EcommerceTracking.tsx
+### 2. AutoNavTracking.tsx
+**Level:** Beginner
+**Use Case:** Automatic, attributed screen-flow tracking
+
+Shows the one-time setup to auto-emit `screen_view` events from React Navigation:
+- Sharing a `createNavigationContainerRef()` between `NavigationContainer` and `LinkForty.init`
+- Enabling `autoTrackNavigation`
+- PII-safe route param capture
+
+**Key Concepts:**
+- `autoTrackNavigation` + `navigationRef`
+- Optional `@react-navigation/native` peer dependency
+- Attributed screen-flow funnels (which link → which screens)
+
+---
+
+### 3. EcommerceTracking.tsx
 **Level:** Intermediate
 **Use Case:** E-commerce and conversion tracking
 
@@ -41,7 +57,7 @@ Demonstrates tracking e-commerce events for attribution and analytics:
 
 ---
 
-### 3. SelfHostedSetup.tsx
+### 4. SelfHostedSetup.tsx
 **Level:** Intermediate
 **Use Case:** Using self-hosted LinkForty Core
 
@@ -59,7 +75,7 @@ Shows how to configure the SDK for self-hosted LinkForty Core instances:
 
 ---
 
-### 4. AdvancedHooks.tsx
+### 5. AdvancedHooks.tsx
 **Level:** Advanced
 **Use Case:** TypeScript and custom React hooks
 

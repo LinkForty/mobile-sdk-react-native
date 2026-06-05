@@ -44,8 +44,14 @@
     "npm": ">=10.0.0"
   },
   "peerDependencies": {
+    "@react-navigation/native": ">=6.0.0",
     "react": ">=17.0.0",
     "react-native": ">=0.64.0"
+  },
+  "peerDependenciesMeta": {
+    "@react-navigation/native": {
+      "optional": true
+    }
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^2.2.0",

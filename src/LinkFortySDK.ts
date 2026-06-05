@@ -6,6 +6,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FingerprintCollector } from './FingerprintCollector';
 import { DeepLinkHandler } from './DeepLinkHandler';
 import { AttributionContext } from './AttributionContext';
+import { NavigationTracker } from './NavigationTracker';
 import type {
   LinkFortyConfig,
   InstallAttributionResponse,
@@ -31,6 +32,8 @@ export class LinkFortySDK {
   private initialized: boolean = false;
   /** Last-click attribution + session context stamped onto every tracked event */
   private attribution: AttributionContext = new AttributionContext();
+  /** Auto screen-view tracker (only created when autoTrackNavigation is enabled) */
+  private navigationTracker: NavigationTracker | null = null;
 
   /**
    * Initialize the SDK
@@ -66,6 +69,26 @@ export class LinkFortySDK {
 
     // Initialize deep link handler for direct deep links
     this.deepLinkHandler = new DeepLinkHandler();
+
+    // Start auto screen-view tracking if requested. Screen views flow through
+    // trackEvent, so they inherit the last-click attribution stamp. Guarded so a
+    // missing/invalid navigationRef (or no react-navigation) is a no-op.
+    if (config.autoTrackNavigation) {
+      if (config.navigationRef) {
+        this.navigationTracker = new NavigationTracker(
+          config.navigationRef,
+          (name, properties) => {
+            void this.trackEvent(name, properties);
+          },
+          { debug: config.debug },
+        );
+        this.navigationTracker.start();
+      } else if (config.debug) {
+        console.warn(
+          '[LinkForty] autoTrackNavigation is enabled but no navigationRef was provided — screen tracking is disabled.',
+        );
+      }
+    }
 
     this.initialized = true;
 
@@ -369,6 +392,11 @@ export class LinkFortySDK {
     ]);
 
     await this.attribution.clear();
+
+    if (this.navigationTracker) {
+      this.navigationTracker.stop();
+      this.navigationTracker = null;
+    }
 
     this.installId = null;
     this.externalUserId = null;
