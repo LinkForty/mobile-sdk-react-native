@@ -98,6 +98,39 @@ export interface InstallAttributionResponse {
 }
 
 /**
+ * Active last-click attribution context — the deep link currently credited for
+ * in-app activity. Set on every deep-link open (deferred or direct); the newest
+ * open supersedes the previous one. Persisted across launches so a reopen without
+ * a new click still attributes to the last link (subject to the server-side
+ * conversion window). See AttributionContext.
+ */
+export interface ActiveAttribution {
+  /** The link the deep link resolved to (`DeepLinkData.linkId`) */
+  linkId: string;
+  /** Optional originating click id (link-level attribution works without it) */
+  clickId?: string;
+  /** ISO timestamp of when this deep link opened the app */
+  openedAt: string;
+}
+
+/**
+ * The attribution fields merged into every `trackEvent` payload so the backend
+ * can credit in-app events (screen views + custom events) to the originating
+ * deep link under the last-click + window model. `sessionId` is always present;
+ * the link fields are absent for organic activity (no deep link opened yet).
+ */
+export interface AttributionStamp {
+  /** Active attributed link id, if any */
+  attributedLinkId?: string;
+  /** Active attributed click id, if known */
+  attributedClickId?: string;
+  /** ISO timestamp of when the attributed deep link opened the app */
+  linkOpenedAt?: string;
+  /** Current session id — one app-open journey (rotates on cold start / new open) */
+  sessionId: string;
+}
+
+/**
  * Event data for tracking in-app events
  */
 export interface EventData {

@@ -13,6 +13,7 @@ export { default } from './LinkFortySDK';
 export { LinkFortySDK } from './LinkFortySDK';
 export { FingerprintCollector } from './FingerprintCollector';
 export { DeepLinkHandler } from './DeepLinkHandler';
+export { AttributionContext } from './AttributionContext';
 
 // Export types
 export type {
@@ -21,6 +22,8 @@ export type {
   DeepLinkData,
   InstallAttributionResponse,
   EventData,
+  ActiveAttribution,
+  AttributionStamp,
   DeferredDeepLinkCallback,
   DeepLinkCallback,
   ResolveFunction,
