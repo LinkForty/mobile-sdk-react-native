@@ -75,12 +75,20 @@ export class LinkFortySDK {
     // missing/invalid navigationRef (or no react-navigation) is a no-op.
     if (config.autoTrackNavigation) {
       if (config.navigationRef) {
+        // `autoTrackNavigation` is either `true` (screen names only, no params)
+        // or an options object with an explicit param allow-list.
+        const navOptions =
+          typeof config.autoTrackNavigation === 'object' ? config.autoTrackNavigation : {};
         this.navigationTracker = new NavigationTracker(
           config.navigationRef,
           (name, properties) => {
             void this.trackEvent(name, properties);
           },
-          { debug: config.debug },
+          {
+            debug: config.debug,
+            captureParams: navOptions.captureParams,
+            debounceMs: navOptions.debounceMs,
+          },
         );
         this.navigationTracker.start();
       } else if (config.debug) {

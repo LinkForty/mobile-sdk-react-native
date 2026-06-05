@@ -51,7 +51,10 @@ export default function App() {
     LinkForty.init({
       baseUrl: 'https://go.yourdomain.com',
       appToken: 'at_your_workspace_token', // Cloud: attributes organic installs
-      autoTrackNavigation: true, // <-- auto-emit screen_view on navigation
+      // `true` = privacy-safe default: screen names only, no route params.
+      // To capture specific non-PII params, opt in with an allow-list instead:
+      //   autoTrackNavigation: { captureParams: ['productId', 'category'] },
+      autoTrackNavigation: true,
       navigationRef, // <-- the same ref passed to NavigationContainer
       debug: __DEV__,
     }).catch((error) => {
@@ -75,8 +78,10 @@ export default function App() {
  * - `screen_view` events carry the active deep-link attribution + a session id,
  *   so re-engagement campaigns (a link tapped by an already-installed user) are
  *   attributed to the link they tapped — not their original install link.
- * - Route params are captured with a PII-safe default: only primitive values are
- *   kept, long strings are truncated, and keys that look like PII (email, token,
- *   phone, …) are dropped. Your custom events (e.g. `add_to_cart`, `purchase`)
- *   are attributed the same way — keep calling `LinkForty.trackEvent(...)` as usual.
+ * - Route params are OFF by default (privacy-safe): only the screen name is sent.
+ *   Opt in to specific non-PII params with an explicit allow-list:
+ *   `autoTrackNavigation: { captureParams: ['productId'] }`. Only those keys'
+ *   primitive values are captured (strings capped, objects/arrays dropped).
+ * - Your custom events (e.g. `add_to_cart`, `purchase`) are attributed the same
+ *   way — keep calling `LinkForty.trackEvent(...)` as usual.
  */

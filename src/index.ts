@@ -25,6 +25,7 @@ export type {
   EventData,
   ActiveAttribution,
   AttributionStamp,
+  AutoTrackNavigationOptions,
   NavigationRouteLike,
   NavigationContainerRefLike,
   DeferredDeepLinkCallback,

@@ -24,18 +24,44 @@ export interface LinkFortyConfig {
   attributionWindow?: number;
   /**
    * Auto-emit `screen_view` events from React Navigation state (no manual
-   * per-screen calls). Requires `navigationRef`. Off by default. When enabled,
-   * screen views flow through the normal event pipeline and carry the active
-   * deep-link attribution context (see AttributionContext), so marketers get an
-   * attributed screen-flow funnel. Apps without react-navigation are unaffected.
+   * per-screen calls). Requires `navigationRef`. Off by default.
+   *
+   * Pass `true` for the default (privacy-safe) behavior: the screen **name** is
+   * captured, but **route params are NOT** — params can contain PII and the SDK
+   * runs inside your app. To capture specific params, pass an options object
+   * with an explicit allow-list:
+   *
+   * ```ts
+   * autoTrackNavigation: { captureParams: ['productId', 'category'] }
+   * ```
+   *
+   * Only the listed keys' primitive values are captured. Screen views flow
+   * through the normal event pipeline and carry the active deep-link attribution
+   * context (see AttributionContext). Apps without react-navigation are unaffected.
    */
-  autoTrackNavigation?: boolean;
+  autoTrackNavigation?: boolean | AutoTrackNavigationOptions;
   /**
    * The app's React Navigation container ref (`createNavigationContainerRef()`),
-   * required when `autoTrackNavigation` is true. Typed structurally so this SDK
-   * never has a compile-time dependency on `@react-navigation/native`.
+   * required when `autoTrackNavigation` is enabled. Typed structurally so this
+   * SDK never has a compile-time dependency on `@react-navigation/native`.
    */
   navigationRef?: NavigationContainerRefLike;
+}
+
+/**
+ * Options for `autoTrackNavigation`. By default no route params are captured
+ * (screen name only); opt in per key via `captureParams`.
+ */
+export interface AutoTrackNavigationOptions {
+  /**
+   * Explicit allow-list of route param keys whose (primitive) values may be
+   * captured on `screen_view`. Omitted/empty = capture no params. Use this to
+   * deliberately collect non-PII context (e.g. `['productId', 'category']`);
+   * never list keys that can hold personal data.
+   */
+  captureParams?: string[];
+  /** Debounce window for rapid transitions, in ms. Default 350. */
+  debounceMs?: number;
 }
 
 /**

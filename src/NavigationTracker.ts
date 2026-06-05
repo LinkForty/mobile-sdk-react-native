@@ -27,8 +27,13 @@ export type ScreenEventEmitter = (
 export interface NavigationTrackerOptions {
   /** Collapse rapid transitions; emit only the settled screen. Default 350ms. */
   debounceMs?: number;
-  /** Attach (sanitized) route params to the event. Default true. */
-  captureParams?: boolean;
+  /**
+   * Explicit allow-list of route param keys whose primitive values may be
+   * captured. Omitted/empty = capture NO params (screen name only). This is the
+   * privacy-safe default: the SDK runs inside the host app and never exfiltrates
+   * param values the developer didn't deliberately whitelist.
+   */
+  captureParams?: string[];
   debug?: boolean;
 }
 
@@ -37,49 +42,24 @@ const SCREEN_VIEW_EVENT = 'screen_view';
 const MAX_PARAM_STRING_LENGTH = 256;
 
 /**
- * Keys whose values are dropped from captured params as likely PII. Matched
- * case-insensitively as substrings. Conservative-by-default given LinkForty has
- * paying customers; apps can disable param capture entirely via `captureParams`.
- */
-const PII_KEY_PATTERNS = [
-  'email',
-  'password',
-  'passwd',
-  'secret',
-  'token',
-  'auth',
-  'apikey',
-  'api_key',
-  'ssn',
-  'phone',
-  'address',
-  'credit',
-  'card',
-  'cvv',
-  'dob',
-  'birth',
-];
-
-function looksLikePII(key: string): boolean {
-  const k = key.toLowerCase();
-  return PII_KEY_PATTERNS.some((p) => k.includes(p));
-}
-
-/**
- * Reduce arbitrary route params to a safe, flat set: primitives only (string /
- * number / boolean), strings capped, PII-looking keys redacted, and nested
- * objects/arrays/functions dropped. Returns undefined when nothing survives.
+ * Reduce route params to a safe, flat set limited to an explicit allow-list of
+ * keys: only the allow-listed keys are considered, and only primitive values
+ * (string / number / boolean) survive — strings are capped and nested
+ * objects/arrays/functions are dropped. Returns undefined when nothing survives
+ * (including when the allow-list is empty/omitted).
  */
 export function sanitizeScreenParams(
   params: Record<string, unknown> | undefined,
+  allowList: string[] | undefined,
 ): Record<string, string | number | boolean> | undefined {
-  if (!params || typeof params !== 'object') {
+  if (!params || typeof params !== 'object' || !allowList || allowList.length === 0) {
     return undefined;
   }
 
+  const allowed = new Set(allowList);
   const out: Record<string, string | number | boolean> = {};
   for (const [key, value] of Object.entries(params)) {
-    if (looksLikePII(key)) {
+    if (!allowed.has(key)) {
       continue;
     }
     if (typeof value === 'string') {
@@ -99,7 +79,7 @@ export class NavigationTracker {
   private readonly navigationRef: NavigationContainerRefLike;
   private readonly emit: ScreenEventEmitter;
   private readonly debounceMs: number;
-  private readonly captureParams: boolean;
+  private readonly captureParams: string[] | undefined;
   private readonly debug: boolean;
 
   private unsubscribe: (() => void) | null = null;
@@ -115,7 +95,7 @@ export class NavigationTracker {
     this.navigationRef = navigationRef;
     this.emit = emit;
     this.debounceMs = options.debounceMs ?? DEFAULT_DEBOUNCE_MS;
-    this.captureParams = options.captureParams ?? true;
+    this.captureParams = options.captureParams;
     this.debug = options.debug ?? false;
   }
 
@@ -229,8 +209,8 @@ export class NavigationTracker {
     if (previousScreen) {
       properties.previousScreen = previousScreen;
     }
-    if (this.captureParams) {
-      const params = sanitizeScreenParams(route.params);
+    if (this.captureParams && this.captureParams.length > 0) {
+      const params = sanitizeScreenParams(route.params, this.captureParams);
       if (params) {
         properties.params = params;
       }

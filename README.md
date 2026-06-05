@@ -306,7 +306,17 @@ await LinkForty.init({
 
 - `@react-navigation/native` is an **optional** peer dependency. Apps that don't use it simply omit `navigationRef` — nothing changes and there's no required dependency.
 - Rapid transitions are debounced and same-screen re-renders are deduped.
-- Route params are captured with a **PII-safe default**: only primitive values are kept, long strings are truncated, and keys that look like PII (`email`, `token`, `phone`, …) are dropped.
+- **Route params are OFF by default** (privacy-safe): only the screen name is captured, since params can contain PII and the SDK runs inside your app. To capture specific non-PII params, opt in with an explicit allow-list:
+
+```typescript
+await LinkForty.init({
+  baseUrl: 'https://go.yourdomain.com',
+  autoTrackNavigation: { captureParams: ['productId', 'category'] },
+  navigationRef,
+});
+```
+
+  Only the listed keys' primitive values are captured (strings capped, nested objects/arrays dropped). Never list keys that can hold personal data.
 
 See [`examples/AutoNavTracking.tsx`](./examples/AutoNavTracking.tsx) for a complete setup.
 
@@ -381,8 +391,9 @@ interface LinkFortyConfig {
   appToken?: string;
   debug?: boolean;
   attributionWindow?: number;
-  autoTrackNavigation?: boolean;        // auto-emit screen_view on navigation
-  navigationRef?: NavigationContainerRefLike; // required when autoTrackNavigation is true
+  // true = screen names only; pass options to opt into specific params
+  autoTrackNavigation?: boolean | { captureParams?: string[]; debounceMs?: number };
+  navigationRef?: NavigationContainerRefLike; // required when autoTrackNavigation is enabled
 }
 ```
 

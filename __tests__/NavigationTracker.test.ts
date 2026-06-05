@@ -33,37 +33,36 @@ function createFakeNavRef(initial?: NavigationRouteLike) {
 }
 
 describe('sanitizeScreenParams', () => {
-  it('keeps primitives, drops nested/objects, caps long strings', () => {
-    const out = sanitizeScreenParams({
-      productId: 'abc',
-      qty: 3,
-      featured: true,
-      nested: { a: 1 },
-      list: [1, 2],
-      fn: () => {},
-      long: 'x'.repeat(500),
-    });
+  it('captures only allow-listed keys, keeps primitives, caps long strings', () => {
+    const out = sanitizeScreenParams(
+      {
+        productId: 'abc',
+        qty: 3,
+        featured: true,
+        nested: { a: 1 },
+        long: 'x'.repeat(500),
+        secretValue: 'should-not-appear',
+      },
+      ['productId', 'qty', 'featured', 'nested', 'long'],
+    );
     expect(out).toEqual({
       productId: 'abc',
       qty: 3,
       featured: true,
       long: 'x'.repeat(256),
+      // `nested` is allow-listed but its value is an object → dropped
+      // `secretValue` is not allow-listed → never considered
     });
   });
 
-  it('redacts PII-looking keys', () => {
-    const out = sanitizeScreenParams({
-      email: 'a@b.com',
-      authToken: 'secret',
-      phoneNumber: '555',
-      productId: 'ok',
-    });
-    expect(out).toEqual({ productId: 'ok' });
+  it('returns undefined with no/empty allow-list (params are off by default)', () => {
+    expect(sanitizeScreenParams({ productId: 'abc' }, undefined)).toBeUndefined();
+    expect(sanitizeScreenParams({ productId: 'abc' }, [])).toBeUndefined();
   });
 
-  it('returns undefined when nothing survives', () => {
-    expect(sanitizeScreenParams({ nested: { a: 1 } })).toBeUndefined();
-    expect(sanitizeScreenParams(undefined)).toBeUndefined();
+  it('returns undefined when no allow-listed key survives', () => {
+    expect(sanitizeScreenParams({ nested: { a: 1 } }, ['nested'])).toBeUndefined();
+    expect(sanitizeScreenParams(undefined, ['x'])).toBeUndefined();
   });
 });
 
@@ -85,7 +84,7 @@ describe('NavigationTracker', () => {
     expect(emit).toHaveBeenCalledWith('screen_view', { screen: 'Home' });
   });
 
-  it('emits on navigation with previousScreen, after the debounce', () => {
+  it('emits on navigation with previousScreen, after the debounce — no params by default', () => {
     const emit = vi.fn();
     const nav = createFakeNavRef({ name: 'Home' });
     const tracker = new NavigationTracker(nav.ref, emit, { debounceMs: 300 });
@@ -96,10 +95,10 @@ describe('NavigationTracker', () => {
     expect(emit).not.toHaveBeenCalled(); // debounced
 
     vi.advanceTimersByTime(300);
+    // Default is privacy-safe: screen name only, params NOT captured.
     expect(emit).toHaveBeenCalledWith('screen_view', {
       screen: 'Product',
       previousScreen: 'Home',
-      params: { productId: 'p1' },
     });
   });
 
@@ -134,17 +133,25 @@ describe('NavigationTracker', () => {
     expect(emit).not.toHaveBeenCalled();
   });
 
-  it('omits params when captureParams is false', () => {
+  it('captures only allow-listed params when captureParams is set', () => {
     const emit = vi.fn();
     const nav = createFakeNavRef({ name: 'Home' });
-    const tracker = new NavigationTracker(nav.ref, emit, { debounceMs: 300, captureParams: false });
+    const tracker = new NavigationTracker(nav.ref, emit, {
+      debounceMs: 300,
+      captureParams: ['productId'],
+    });
     tracker.start();
     emit.mockClear();
 
-    nav.navigateTo({ name: 'Product', params: { productId: 'p1' } });
+    nav.navigateTo({ name: 'Product', params: { productId: 'p1', referrerEmail: 'a@b.com' } });
     vi.advanceTimersByTime(300);
 
-    expect(emit).toHaveBeenCalledWith('screen_view', { screen: 'Product', previousScreen: 'Home' });
+    // Only the whitelisted key is captured; referrerEmail is never sent.
+    expect(emit).toHaveBeenCalledWith('screen_view', {
+      screen: 'Product',
+      previousScreen: 'Home',
+      params: { productId: 'p1' },
+    });
   });
 
   it('stop() unsubscribes and prevents further emits', () => {
