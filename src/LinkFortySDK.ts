@@ -7,6 +7,7 @@ import { FingerprintCollector } from './FingerprintCollector';
 import { DeepLinkHandler } from './DeepLinkHandler';
 import { AttributionContext } from './AttributionContext';
 import { NavigationTracker } from './NavigationTracker';
+import { SDK_NAME, SDK_VERSION } from './version';
 import type {
   LinkFortyConfig,
   InstallAttributionResponse,
@@ -230,6 +231,9 @@ export class LinkFortySDK {
       eventData: properties || {},
       timestamp: new Date().toISOString(),
       ...this.attribution.getStamp(),
+      // SDK identity for health/version diagnostics (SIT-235)
+      sdkName: SDK_NAME,
+      sdkVersion: SDK_VERSION,
     };
 
     try {
@@ -467,6 +471,9 @@ export class LinkFortySDK {
             platformVersion: fingerprint.osVersion,
             deviceId: undefined, // Optional: Can add IDFA/GAID if available
             attributionWindowHours,
+            // SDK identity for health/version diagnostics (SIT-235)
+            sdkName: SDK_NAME,
+            sdkVersion: SDK_VERSION,
             // Public workspace token; lets Cloud scope organic installs
             // (those with no click match) to the right workspace. Omitted
             // entirely when not configured — server treats absence as
@@ -557,6 +564,8 @@ export class LinkFortySDK {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      // SDK identity header (SIT-235) — name/version on every SDK request.
+      'X-LinkForty-SDK': `${SDK_NAME}/${SDK_VERSION}`,
     };
 
     // Add API key if provided
