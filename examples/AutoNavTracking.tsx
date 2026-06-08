@@ -4,8 +4,8 @@
  * With `autoTrackNavigation`, the SDK emits a `screen_view` event every time the
  * user navigates — no manual per-screen calls. Because screen views flow through
  * the normal event pipeline, they're automatically attributed to the deep link
- * that drove the visit, so your LinkForty dashboard can show an *attributed*
- * screen-flow funnel per campaign (which link → which screens → which events).
+ * that drove the visit, so LinkForty can show an *attributed* screen-flow
+ * funnel per campaign (which link → which screens → which events).
  *
  * Setup is one-time:
  *   1. Create a navigation ref with `createNavigationContainerRef()`.
@@ -50,7 +50,7 @@ export default function App() {
   useEffect(() => {
     LinkForty.init({
       baseUrl: 'https://go.yourdomain.com',
-      appToken: 'at_your_workspace_token', // Cloud: attributes organic installs
+      appToken: 'at_your_workspace_token', // attributes organic installs to your workspace
       // `true` = privacy-safe default: screen names only, no route params.
       // To capture specific non-PII params, opt in with an allow-list instead:
       //   autoTrackNavigation: { captureParams: ['productId', 'category'] },

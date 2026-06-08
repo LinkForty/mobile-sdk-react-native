@@ -168,7 +168,7 @@ Advanced patterns using custom React hooks and TypeScript:
 
 ### iOS Testing
 
-1. **Create a test link** in your LinkForty dashboard
+1. **Create a test link** in LinkForty
 2. **Uninstall the app** from your device
 3. **Open Safari** and navigate to your LinkForty short link
 4. **Install the app** from the App Store or Xcode
@@ -176,7 +176,7 @@ Advanced patterns using custom React hooks and TypeScript:
 
 ### Android Testing
 
-1. **Create a test link** in your LinkForty dashboard
+1. **Create a test link** in LinkForty
 2. **Uninstall the app** from your device
 3. **Open Chrome** and navigate to your LinkForty short link
 4. **Install the app** from the Play Store or Android Studio
@@ -300,10 +300,10 @@ await LinkForty.clearData();
 // App will behave as if it's a fresh install
 ```
 
-### Verify SDK Health
+### Verify Connectivity
 
 ```bash
-# Check if your LinkForty instance is reachable
+# Check that your LinkForty instance is reachable
 curl https://go.yourdomain.com/api/sdk/v1/health
 ```
 
