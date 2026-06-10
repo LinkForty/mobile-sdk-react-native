@@ -1,3 +1,7 @@
+## 1.6.0 (2026-06-10)
+
+* feat(sdk): report SDK name + version (SIT-235 · React Native) (#6) ([a4ebc5d](https://github.com/LinkForty/mobile-sdk-react-native/commit/a4ebc5d)), closes [#6](https://github.com/LinkForty/mobile-sdk-react-native/issues/6)
+
 ## 1.5.0 (2026-06-10)
 
 * feat: autoTrackNavigation + last-click attribution context (SIT-237) (#5) ([c3537bf](https://github.com/LinkForty/mobile-sdk-react-native/commit/c3537bf)), closes [#5](https://github.com/LinkForty/mobile-sdk-react-native/issues/5)
