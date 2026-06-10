@@ -1,3 +1,7 @@
+## 1.5.0 (2026-06-10)
+
+* feat: autoTrackNavigation + last-click attribution context (SIT-237) (#5) ([c3537bf](https://github.com/LinkForty/mobile-sdk-react-native/commit/c3537bf)), closes [#5](https://github.com/LinkForty/mobile-sdk-react-native/issues/5)
+
 ## 1.4.0 (2026-05-04)
 
 * ci: drop flaky 'npm install -g npm@latest' self-upgrade step (#4) ([62cbc18](https://github.com/LinkForty/mobile-sdk-react-native/commit/62cbc18)), closes [#4](https://github.com/LinkForty/mobile-sdk-react-native/issues/4) [#2](https://github.com/LinkForty/mobile-sdk-react-native/issues/2)
