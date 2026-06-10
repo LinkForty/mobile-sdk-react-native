@@ -34,6 +34,12 @@ npm install @linkforty/mobile-sdk-react-native
 npm install @react-native-async-storage/async-storage react-native-device-info
 ```
 
+Only if you use [automatic screen tracking](#automatic-screen-tracking-autotracknavigation) (`autoTrackNavigation`), install React Navigation — it's an **optional** peer dependency and not required otherwise:
+
+```bash
+npm install @react-navigation/native
+```
+
 ### iOS Setup
 
 1. Install CocoaPods dependencies:
@@ -274,6 +280,46 @@ await LinkForty.trackEvent('purchase', {
 | `name` | `string` | Yes | Event name (e.g., `'purchase'`, `'signup'`) |
 | `properties` | `Record<string, any>` | No | Arbitrary event properties |
 
+> **Attribution:** every tracked event (including auto screen views) is automatically attributed to the deep link that drove the visit using a last-click model — so re-engagement campaigns (a link tapped by an already-installed user) are credited to the link they tapped, not their original install link.
+
+---
+
+### Automatic Screen Tracking (`autoTrackNavigation`)
+
+Emit a `screen_view` event on every navigation — no manual per-screen calls — so your dashboard can show an **attributed screen-flow funnel** per campaign (which link → which screens → which events). This is opt-in and uses [React Navigation](https://reactnavigation.org/).
+
+Pass your navigation ref to **both** `NavigationContainer` and `LinkForty.init`:
+
+```typescript
+import { createNavigationContainerRef } from '@react-navigation/native';
+
+export const navigationRef = createNavigationContainerRef();
+
+await LinkForty.init({
+  baseUrl: 'https://go.yourdomain.com',
+  autoTrackNavigation: true,
+  navigationRef,
+});
+
+// <NavigationContainer ref={navigationRef}> ... </NavigationContainer>
+```
+
+- `@react-navigation/native` is an **optional** peer dependency. Apps that don't use it simply omit `navigationRef` — nothing changes and there's no required dependency.
+- Rapid transitions are debounced and same-screen re-renders are deduped.
+- **Route params are OFF by default** (privacy-safe): only the screen name is captured, since params can contain PII and the SDK runs inside your app. To capture specific non-PII params, opt in with an explicit allow-list:
+
+```typescript
+await LinkForty.init({
+  baseUrl: 'https://go.yourdomain.com',
+  autoTrackNavigation: { captureParams: ['productId', 'category'] },
+  navigationRef,
+});
+```
+
+  Only the listed keys' primitive values are captured (strings capped, nested objects/arrays dropped). Never list keys that can hold personal data.
+
+See [`examples/AutoNavTracking.tsx`](./examples/AutoNavTracking.tsx) for a complete setup.
+
 ---
 
 ### `getInstallData()`
@@ -342,8 +388,12 @@ interface DeepLinkData {
 interface LinkFortyConfig {
   baseUrl: string;
   apiKey?: string;
+  appToken?: string;
   debug?: boolean;
   attributionWindow?: number;
+  // true = screen names only; pass options to opt into specific params
+  autoTrackNavigation?: boolean | { captureParams?: string[]; debounceMs?: number };
+  navigationRef?: NavigationContainerRefLike; // required when autoTrackNavigation is enabled
 }
 ```
 

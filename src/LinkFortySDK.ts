@@ -5,6 +5,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FingerprintCollector } from './FingerprintCollector';
 import { DeepLinkHandler } from './DeepLinkHandler';
+import { AttributionContext } from './AttributionContext';
+import { NavigationTracker } from './NavigationTracker';
 import type {
   LinkFortyConfig,
   InstallAttributionResponse,
@@ -28,6 +30,10 @@ export class LinkFortySDK {
   private installId: string | null = null;
   private externalUserId: string | null = null;
   private initialized: boolean = false;
+  /** Last-click attribution + session context stamped onto every tracked event */
+  private attribution: AttributionContext = new AttributionContext();
+  /** Auto screen-view tracker (only created when autoTrackNavigation is enabled) */
+  private navigationTracker: NavigationTracker | null = null;
 
   /**
    * Initialize the SDK
@@ -44,6 +50,12 @@ export class LinkFortySDK {
       console.log('[LinkForty] Initializing SDK with config:', config);
     }
 
+    // Recreate the attribution context so it honors the debug flag, then restore
+    // any persisted active context (a prior deep-link open) before we attribute
+    // the install or load cached data.
+    this.attribution = new AttributionContext({ debug: config.debug });
+    await this.attribution.load();
+
     // Check if this is first launch
     const isFirstLaunch = await this.isFirstLaunch();
 
@@ -57,6 +69,34 @@ export class LinkFortySDK {
 
     // Initialize deep link handler for direct deep links
     this.deepLinkHandler = new DeepLinkHandler();
+
+    // Start auto screen-view tracking if requested. Screen views flow through
+    // trackEvent, so they inherit the last-click attribution stamp. Guarded so a
+    // missing/invalid navigationRef (or no react-navigation) is a no-op.
+    if (config.autoTrackNavigation) {
+      if (config.navigationRef) {
+        // `autoTrackNavigation` is either `true` (screen names only, no params)
+        // or an options object with an explicit param allow-list.
+        const navOptions =
+          typeof config.autoTrackNavigation === 'object' ? config.autoTrackNavigation : {};
+        this.navigationTracker = new NavigationTracker(
+          config.navigationRef,
+          (name, properties) => {
+            void this.trackEvent(name, properties);
+          },
+          {
+            debug: config.debug,
+            captureParams: navOptions.captureParams,
+            debounceMs: navOptions.debounceMs,
+          },
+        );
+        this.navigationTracker.start();
+      } else if (config.debug) {
+        console.warn(
+          '[LinkForty] autoTrackNavigation is enabled but no navigationRef was provided — screen tracking is disabled.',
+        );
+      }
+    }
 
     this.initialized = true;
 
@@ -82,6 +122,22 @@ export class LinkFortySDK {
    */
   getExternalUserId(): string | null {
     return this.externalUserId;
+  }
+
+  /**
+   * Current session id — identifies one app-open journey. Rotates on cold start
+   * and on each new deep-link open. Used to group a visit's screen-flow.
+   */
+  getSessionId(): string {
+    return this.attribution.getSessionId();
+  }
+
+  /**
+   * The link currently credited for in-app activity (last-click), or null if the
+   * user's activity is organic (no deep link has opened the app).
+   */
+  getActiveAttribution(): import('./types').ActiveAttribution | null {
+    return this.attribution.getActive();
   }
 
   /**
@@ -135,7 +191,19 @@ export class LinkFortySDK {
       }
     };
 
-    this.deepLinkHandler.initialize(this.config.baseUrl, callback, resolveFn);
+    // Wrap the developer's callback so that every direct (re-engagement) deep-link
+    // open updates the last-click attribution context before their handler runs.
+    // This is what credits a re-engagement click by an already-installed user to
+    // the link they just tapped, instead of their original install link.
+    const trackingCallback: DeepLinkCallback = (url, deepLinkData) => {
+      if (deepLinkData?.linkId) {
+        // Fire-and-forget; persistence failures must never block deep-link routing.
+        void this.attribution.recordDeepLinkOpen(deepLinkData.linkId);
+      }
+      callback(url, deepLinkData);
+    };
+
+    this.deepLinkHandler.initialize(this.config.baseUrl, trackingCallback, resolveFn);
   }
 
   /**
@@ -151,12 +219,17 @@ export class LinkFortySDK {
       return;
     }
 
-    // Backend expects: { installId, eventName, eventData, timestamp }
+    // Backend expects: { installId, eventName, eventData, timestamp } and now
+    // also accepts the last-click attribution stamp ({ attributedLinkId,
+    // attributedClickId?, linkOpenedAt?, sessionId }) so screen views and custom
+    // events are credited to the originating deep link. Older servers ignore the
+    // extra fields (Zod strips unknown keys), so this stays backward-compatible.
     const requestBody = {
       installId: this.installId,
       eventName: name,
       eventData: properties || {},
       timestamp: new Date().toISOString(),
+      ...this.attribution.getStamp(),
     };
 
     try {
@@ -326,6 +399,13 @@ export class LinkFortySDK {
       STORAGE_KEYS.FIRST_LAUNCH,
     ]);
 
+    await this.attribution.clear();
+
+    if (this.navigationTracker) {
+      this.navigationTracker.stop();
+      this.navigationTracker = null;
+    }
+
     this.installId = null;
     this.externalUserId = null;
 
@@ -421,6 +501,13 @@ export class LinkFortySDK {
           STORAGE_KEYS.INSTALL_DATA,
           JSON.stringify(deepLinkData)
         );
+
+        // Seed the last-click attribution context from the deferred deep link so
+        // the new user's first-session screen views + events are credited to the
+        // install link.
+        if (deepLinkData.linkId) {
+          await this.attribution.recordDeepLinkOpen(deepLinkData.linkId);
+        }
 
         // Call deferred deep link callback if registered
         if (this.deferredDeepLinkCallback) {
