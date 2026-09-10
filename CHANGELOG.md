@@ -1,3 +1,7 @@
+## <small>1.6.1 (2026-09-10)</small>
+
+* fix(deeplink): keep URL parameters on a direct open (#7) ([635a23b](https://github.com/LinkForty/mobile-sdk-react-native/commit/635a23b)), closes [#7](https://github.com/LinkForty/mobile-sdk-react-native/issues/7)
+
 ## 1.6.0 (2026-06-10)
 
 * feat(sdk): report SDK name + version (SIT-235 · React Native) (#6) ([a4ebc5d](https://github.com/LinkForty/mobile-sdk-react-native/commit/a4ebc5d)), closes [#6](https://github.com/LinkForty/mobile-sdk-react-native/issues/6)
