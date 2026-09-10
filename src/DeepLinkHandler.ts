@@ -10,6 +10,7 @@
 
 import { Linking } from 'react-native';
 import { FingerprintCollector } from './FingerprintCollector';
+import { extractCustomParameters, mergeUrlParameters } from './urlParameters';
 import type { DeepLinkData, DeepLinkCallback, ResolveFunction } from './types';
 
 export class DeepLinkHandler {
@@ -128,7 +129,7 @@ export class DeepLinkHandler {
         const resolvedData = await this.resolveURL(url);
         console.log('[LinkForty] Resolve result:', JSON.stringify(resolvedData));
         if (resolvedData) {
-          this.callback(url, resolvedData);
+          this.callback(url, mergeUrlParameters(resolvedData, localData?.customParameters));
           return;
         }
         console.warn('[LinkForty] Resolve returned null, falling back to local parse');
@@ -230,13 +231,8 @@ export class DeepLinkHandler {
         content: parsed.searchParams.get('utm_content') || undefined,
       };
 
-      // Extract all other query parameters as custom parameters
-      const customParameters: Record<string, string> = {};
-      parsed.searchParams.forEach((value, key) => {
-        if (!key.startsWith('utm_')) {
-          customParameters[key] = value;
-        }
-      });
+      // Reserved names are excluded here; see urlParameters.ts.
+      const customParameters = extractCustomParameters(parsed.searchParams.entries());
 
       return {
         shortCode,
