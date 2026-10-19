@@ -5,6 +5,7 @@
 import { Platform, Dimensions, NativeModules } from 'react-native';
 import DeviceInfo from 'react-native-device-info';
 import type { DeviceFingerprint } from './types';
+import { normalizeLanguageTag } from './languageTag';
 
 export class FingerprintCollector {
   /**
@@ -66,24 +67,28 @@ export class FingerprintCollector {
   }
 
   /**
-   * Get device language
+   * Get device language as `language` or `language-REGION` (e.g. `en-ES`)
    */
   private static getLanguage(): string {
     try {
       // Try to get locale from NativeModules
-      const locale = Platform.select({
-        ios: NativeModules.SettingsManager?.settings?.AppleLocale ||
-              NativeModules.SettingsManager?.settings?.AppleLanguages?.[0],
-        android: NativeModules.I18nManager?.localeIdentifier,
-      });
+      const locale = normalizeLanguageTag(
+        Platform.select({
+          ios: NativeModules.SettingsManager?.settings?.AppleLocale ||
+                NativeModules.SettingsManager?.settings?.AppleLanguages?.[0],
+          android: NativeModules.I18nManager?.localeIdentifier,
+        })
+      );
 
       if (locale) {
         return locale;
       }
 
       // Fallback to navigator if available
-      if (typeof navigator !== 'undefined' && navigator.language) {
-        return navigator.language;
+      const browserLocale =
+        typeof navigator !== 'undefined' ? normalizeLanguageTag(navigator.language) : undefined;
+      if (browserLocale) {
+        return browserLocale;
       }
 
       return 'en-US';
