@@ -1,3 +1,7 @@
+## <small>1.6.2 (2026-10-19)</small>
+
+* fix(fingerprint): send the device language as language-region (#8) ([7c0569e](https://github.com/LinkForty/mobile-sdk-react-native/commit/7c0569e)), closes [#8](https://github.com/LinkForty/mobile-sdk-react-native/issues/8) [en_ES_#u-fw-mon-mu-celsius](https://github.com/en_ES_/issues/u-fw-mon-mu-celsius)
+
 ## <small>1.6.1 (2026-09-10)</small>
 
 * fix(deeplink): keep URL parameters on a direct open (#7) ([635a23b](https://github.com/LinkForty/mobile-sdk-react-native/commit/635a23b)), closes [#7](https://github.com/LinkForty/mobile-sdk-react-native/issues/7)
