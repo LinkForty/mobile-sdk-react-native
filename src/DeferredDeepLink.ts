@@ -1,4 +1,38 @@
-import type { DeepLinkData, DeferredDeepLinkCallback } from './types';
+import type {
+  DeepLinkData,
+  DeferredDeepLinkCallback,
+  InstallAttributionResponse,
+} from './types';
+
+/**
+ * The deferred deep link carried by an install response, or null when the
+ * install is not attributed.
+ *
+ * `customParameters` is filled from the link's `deepLinkParameters`, so apps
+ * read the same field on deferred and direct deep links. The match certainty
+ * fields (`confidenceScore`, `matchedFactors`, `attributionMethod`,
+ * `competingLinks`) are taken from the deep link data, or from the top level of
+ * the response when the deep link data lacks them; a server that sends neither
+ * leaves them undefined.
+ */
+export function deferredDeepLinkFromInstall(
+  response: InstallAttributionResponse,
+): DeepLinkData | null {
+  if (!response.attributed || !response.deepLinkData) return null;
+
+  const link = response.deepLinkData as DeepLinkData & {
+    deepLinkParameters?: Record<string, string>;
+  };
+
+  return {
+    ...link,
+    customParameters: link.deepLinkParameters || link.customParameters,
+    confidenceScore: link.confidenceScore ?? response.confidenceScore,
+    matchedFactors: link.matchedFactors ?? response.matchedFactors,
+    attributionMethod: link.attributionMethod ?? response.attributionMethod,
+    competingLinks: link.competingLinks ?? response.competingLinks,
+  };
+}
 
 /**
  * Delivers the deferred deep link once, on the launch that reports the install:

@@ -60,6 +60,20 @@ interface DeepLinkData {
   appScheme?: string;
   clickedAt?: string;
   linkId?: string;
+  /** Deferred deep links only: attribution confidence score (0-100) */
+  confidenceScore?: number;
+  /** Deferred deep links only: fingerprint factors that matched the click */
+  matchedFactors?: string[];
+  /** Deferred deep links only: 'fingerprint' when matched to a click (newer values may appear) */
+  attributionMethod?: 'fingerprint' | 'none' | string;
+  /**
+   * Deferred deep links only: how many OTHER links had a click from the
+   * install's network that also reached the confidence threshold. 0 = no other
+   * link was in contention. Above 0 = another device's tap may be what led to
+   * this install; treat a sensitive link (sign-in, gift) as unverified.
+   * Undefined when the server does not report it.
+   */
+  competingLinks?: number;
 }
 
 interface CreateLinkOptions {

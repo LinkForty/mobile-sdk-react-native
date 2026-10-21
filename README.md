@@ -223,6 +223,18 @@ LinkForty.onDeferredDeepLink((data: DeepLinkData | null) => {
 |--------------------|------|-------------|
 | `data` | `DeepLinkData \| null` | Attributed link data, or `null` for organic installs |
 
+The deferred link also carries how certain the match is: `confidenceScore`, `matchedFactors`, `attributionMethod` and `competingLinks` (see [`DeepLinkData`](#deeplinkdata)). Before acting on a sensitive link, check `competingLinks`:
+
+```typescript
+LinkForty.onDeferredDeepLink((data) => {
+  if (data?.customParameters?.route === 'SIGN_IN' && (data.competingLinks ?? 0) > 0) {
+    // Another link was also in contention for this install: confirm with the user first
+    return askUserToConfirm(data);
+  }
+  // ...
+});
+```
+
 ---
 
 ### `createLink(options)`
@@ -381,8 +393,17 @@ interface DeepLinkData {
   appScheme?: string;
   clickedAt?: string;
   linkId?: string;
+  // Deferred deep links only (onDeferredDeepLink / getInstallData):
+  confidenceScore?: number;   // 0-100
+  matchedFactors?: string[];  // e.g. ['ip', 'user_agent', 'timezone']
+  attributionMethod?: 'fingerprint' | 'none' | string;
+  competingLinks?: number;
 }
 ```
+
+`confidenceScore`, `matchedFactors`, `attributionMethod` and `competingLinks` are set only on the deferred deep link; direct opens leave them undefined, and servers that do not report `attributionMethod` or `competingLinks` leave those undefined too.
+
+`competingLinks` is how many other links had a click from the install's network that also reached the confidence threshold. `0` means no other link was in contention; above `0` means another device's tap may be what led to this install, so an app acting on a sensitive link (sign-in, gift) can treat the match as unverified, for example by asking the user to confirm.
 
 ### `LinkFortyConfig`
 
