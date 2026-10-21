@@ -23,6 +23,7 @@ export type {
   DeviceFingerprint,
   DeepLinkData,
   InstallAttributionResponse,
+  AttributionMethod,
   EventData,
   ActiveAttribution,
   AttributionStamp,

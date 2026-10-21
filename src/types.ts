@@ -149,7 +149,38 @@ export interface DeepLinkData {
   clickedAt?: string;
   /** Link ID */
   linkId?: string;
+  /**
+   * Install attribution confidence score (0-100). Set on deferred deep links
+   * only; direct opens leave it undefined.
+   */
+  confidenceScore?: number;
+  /**
+   * Fingerprint factors that matched the click (e.g. `['ip', 'user_agent', 'timezone']`).
+   * Set on deferred deep links only.
+   */
+  matchedFactors?: string[];
+  /**
+   * How the install was matched to the click. Set on deferred deep links only,
+   * and only by servers that report it.
+   */
+  attributionMethod?: AttributionMethod;
+  /**
+   * How many other links had a click from the install's network that also
+   * reached the confidence threshold. 0 means no other link was in contention;
+   * above 0 means another device's tap may be what led to this install, so an
+   * app acting on a sensitive link (sign-in, gift) can treat the match as
+   * unverified and ask the user to confirm. Set on deferred deep links only,
+   * and only by servers that report it.
+   */
+  competingLinks?: number;
 }
+
+/**
+ * How an install was attributed: `'fingerprint'` when it was matched to a
+ * click, `'none'` for an organic install. Other values may be added by newer
+ * servers.
+ */
+export type AttributionMethod = 'fingerprint' | 'none' | (string & {});
 
 /**
  * Response from install attribution endpoint
@@ -164,6 +195,18 @@ export interface InstallAttributionResponse {
   confidenceScore: number;
   /** Array of matched fingerprint factors (e.g., ['ip', 'user_agent', 'timezone', 'language', 'screen']) */
   matchedFactors: string[];
+  /**
+   * `'fingerprint'` when the install was matched to a click, `'none'` when it
+   * is organic. Undefined when the server does not report it.
+   */
+  attributionMethod?: AttributionMethod;
+  /**
+   * How many other links had a click from the install's network that also
+   * reached the confidence threshold (0 when organic). Above 0 means another
+   * device's tap may be what led to this install. Undefined when the server
+   * does not report it.
+   */
+  competingLinks?: number;
   /** Deep link data if attributed (contains shortCode, URLs, UTM params, confidence, etc.) */
   deepLinkData: DeepLinkData | Record<string, never>;
 }

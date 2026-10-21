@@ -8,7 +8,7 @@ import { DeepLinkHandler } from './DeepLinkHandler';
 import { AttributionContext } from './AttributionContext';
 import { NavigationTracker } from './NavigationTracker';
 import { LinkDomains } from './LinkDomains';
-import { DeferredDeepLink } from './DeferredDeepLink';
+import { DeferredDeepLink, deferredDeepLinkFromInstall } from './DeferredDeepLink';
 import { SDK_NAME, SDK_VERSION } from './version';
 import type {
   LinkFortyConfig,
@@ -509,16 +509,8 @@ export class LinkFortySDK {
       }
 
       // If attributed, store deep link data
-      if (response.attributed && response.deepLinkData) {
-        // Normalize backend response to match DeepLinkData type
-        // Populate customParameters from deepLinkParameters so app developers
-        // get a consistent field regardless of direct vs deferred deep link path
-        const deepLinkData: DeepLinkData = {
-          ...response.deepLinkData as DeepLinkData,
-          customParameters: (response.deepLinkData as any).deepLinkParameters
-            || (response.deepLinkData as DeepLinkData).customParameters,
-        };
-
+      const deepLinkData = deferredDeepLinkFromInstall(response);
+      if (deepLinkData) {
         await AsyncStorage.setItem(
           STORAGE_KEYS.INSTALL_DATA,
           JSON.stringify(deepLinkData)
@@ -536,6 +528,7 @@ export class LinkFortySDK {
         if (this.config.debug) {
           console.log('[LinkForty] Install attributed with confidence:', response.confidenceScore);
           console.log('[LinkForty] Matched factors:', response.matchedFactors);
+          console.log('[LinkForty] Competing links:', deepLinkData.competingLinks);
         }
       } else {
         if (this.config.debug) {
