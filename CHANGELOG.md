@@ -1,3 +1,7 @@
+## 1.7.0 (2026-10-21)
+
+* feat(deeplink): look up links on the workspace's link hosts, and name the app on every request (#9) ([5719ddc](https://github.com/LinkForty/mobile-sdk-react-native/commit/5719ddc)), closes [#9](https://github.com/LinkForty/mobile-sdk-react-native/issues/9)
+
 ## <small>1.6.2 (2026-10-19)</small>
 
 * fix(fingerprint): send the device language as language-region (#8) ([7c0569e](https://github.com/LinkForty/mobile-sdk-react-native/commit/7c0569e)), closes [#8](https://github.com/LinkForty/mobile-sdk-react-native/issues/8) [en_ES_#u-fw-mon-mu-celsius](https://github.com/en_ES_/issues/u-fw-mon-mu-celsius)
