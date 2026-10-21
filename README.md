@@ -179,7 +179,9 @@ await LinkForty.init({
 
 Listen for direct deep links. Called when the app is opened via a Universal Link (iOS) or App Link (Android).
 
-When the URL matches your LinkForty `baseUrl`, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing.
+When the URL is a LinkForty link, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing. Any other URL reaches the callback with `data` set to `null`.
+
+A LinkForty link is an `http(s)` URL on your `baseUrl` host or, with `appToken` set, on one of your workspace's link hosts: its `toapp.me` label and verified custom domains. The SDK learns those hosts from the server at launch and saves them for the next one. With `appToken` set, a lookup answers only with your own workspace's links.
 
 ```typescript
 LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {

@@ -11,12 +11,14 @@
 import { Linking } from 'react-native';
 import { FingerprintCollector } from './FingerprintCollector';
 import { extractCustomParameters, mergeUrlParameters } from './urlParameters';
+import { hostOf, type LinkDomains } from './LinkDomains';
 import type { DeepLinkData, DeepLinkCallback, ResolveFunction } from './types';
 
 export class DeepLinkHandler {
   private callback: DeepLinkCallback | null = null;
   private baseUrl: string | null = null;
   private resolveFn: ResolveFunction | null = null;
+  private linkDomains: LinkDomains | null = null;
 
   /**
    * Parse a URL string manually.
@@ -75,11 +77,18 @@ export class DeepLinkHandler {
    * @param baseUrl - LinkForty instance base URL for detecting LinkForty URLs
    * @param callback - Callback invoked with parsed/resolved deep link data
    * @param resolveFn - Optional function to resolve LinkForty URLs via the server API
+   * @param linkDomains - Optional workspace link hosts; URLs on them are LinkForty URLs too
    */
-  initialize(baseUrl: string, callback: DeepLinkCallback, resolveFn?: ResolveFunction): void {
+  initialize(
+    baseUrl: string,
+    callback: DeepLinkCallback,
+    resolveFn?: ResolveFunction,
+    linkDomains?: LinkDomains,
+  ): void {
     this.baseUrl = baseUrl;
     this.callback = callback;
     this.resolveFn = resolveFn || null;
+    this.linkDomains = linkDomains || null;
 
     console.log('[LinkForty] DeepLinkHandler.initialize: baseUrl=', baseUrl, 'hasResolveFn=', !!resolveFn);
 
@@ -118,12 +127,13 @@ export class DeepLinkHandler {
       return;
     }
 
-    // Parse locally first (for fallback and to detect LinkForty URLs)
-    const localData = this.parseURL(url);
+    // Parse a LinkForty URL locally first, for the fallback
+    const isLinkFortyUrl = await this.isLinkFortyUrl(url);
+    const localData = isLinkFortyUrl ? this.parseLinkURL(url) : null;
     console.log('[LinkForty] localData parsed:', JSON.stringify(localData));
 
     // If this is a LinkForty URL and we have a resolver, try the server
-    if (localData && this.resolveFn && this.baseUrl && url.startsWith(this.baseUrl)) {
+    if (localData && this.resolveFn) {
       try {
         console.log('[LinkForty] Resolving URL via server...');
         const resolvedData = await this.resolveURL(url);
@@ -137,13 +147,23 @@ export class DeepLinkHandler {
         console.warn('[LinkForty] Failed to resolve URL from server, falling back to local parse:', error);
       }
     } else {
-      console.warn('[LinkForty] Skipping server resolve: localData=', !!localData, 'resolveFn=', !!this.resolveFn, 'baseUrl=', this.baseUrl, 'urlMatch=', url.startsWith(this.baseUrl || ''));
+      console.warn('[LinkForty] Skipping server resolve: localData=', !!localData, 'resolveFn=', !!this.resolveFn, 'isLinkFortyUrl=', isLinkFortyUrl);
     }
 
     // Fallback to locally-parsed data (no customParameters from server)
     console.warn('[LinkForty] Using local fallback — customParameters will be empty for App Link URLs');
     this.callback(url, localData);
   };
+
+  /**
+   * Whether `url` is on the base URL's host or one of the workspace's link
+   * hosts (see LinkDomains).
+   */
+  private async isLinkFortyUrl(url: string): Promise<boolean> {
+    if (this.linkDomains) return this.linkDomains.shouldLookUp(url);
+    const host = hostOf(url);
+    return host !== null && this.baseUrl !== null && host === hostOf(this.baseUrl);
+  }
 
   /**
    * Resolve a LinkForty URL via the server API.
@@ -203,12 +223,16 @@ export class DeepLinkHandler {
    * Used as fallback when server resolution fails or for non-LinkForty URLs.
    */
   parseURL(url: string): DeepLinkData | null {
-    try {
-      // Check if this is a LinkForty URL
-      if (this.baseUrl && !url.startsWith(this.baseUrl)) {
-        return null;
-      }
+    // Check if this is a LinkForty URL
+    if (this.baseUrl && !url.startsWith(this.baseUrl)) {
+      return null;
+    }
+    return this.parseLinkURL(url);
+  }
 
+  /** Parse a LinkForty URL on any of its hosts. */
+  private parseLinkURL(url: string): DeepLinkData | null {
+    try {
       const parsed = DeepLinkHandler.parseUrlString(url);
       if (!parsed) {
         return null;
