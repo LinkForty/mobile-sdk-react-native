@@ -15,6 +15,7 @@ export { FingerprintCollector } from './FingerprintCollector';
 export { DeepLinkHandler } from './DeepLinkHandler';
 export { AttributionContext } from './AttributionContext';
 export { NavigationTracker, sanitizeScreenParams } from './NavigationTracker';
+export type { LinkDomains } from './LinkDomains';
 
 // Export types
 export type {

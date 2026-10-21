@@ -7,6 +7,7 @@ import { FingerprintCollector } from './FingerprintCollector';
 import { DeepLinkHandler } from './DeepLinkHandler';
 import { AttributionContext } from './AttributionContext';
 import { NavigationTracker } from './NavigationTracker';
+import { LinkDomains } from './LinkDomains';
 import { SDK_NAME, SDK_VERSION } from './version';
 import type {
   LinkFortyConfig,
@@ -35,6 +36,8 @@ export class LinkFortySDK {
   private attribution: AttributionContext = new AttributionContext();
   /** Auto screen-view tracker (only created when autoTrackNavigation is enabled) */
   private navigationTracker: NavigationTracker | null = null;
+  /** The workspace's link hosts, which decide which URLs are looked up as links */
+  private linkDomains: LinkDomains | null = null;
 
   /**
    * Initialize the SDK
@@ -67,6 +70,15 @@ export class LinkFortySDK {
       // Load cached install data
       await this.loadInstallData();
     }
+
+    // Learn the workspace's link hosts in the background
+    this.linkDomains = new LinkDomains(
+      config.baseUrl,
+      (path) => this.apiRequest<{ domains: string[] }>(path),
+      config.appToken,
+      config.debug,
+    );
+    this.linkDomains.start();
 
     // Initialize deep link handler for direct deep links
     this.deepLinkHandler = new DeepLinkHandler();
@@ -204,7 +216,12 @@ export class LinkFortySDK {
       callback(url, deepLinkData);
     };
 
-    this.deepLinkHandler.initialize(this.config.baseUrl, trackingCallback, resolveFn);
+    this.deepLinkHandler.initialize(
+      this.config.baseUrl,
+      trackingCallback,
+      resolveFn,
+      this.linkDomains ?? undefined,
+    );
   }
 
   /**
@@ -573,6 +590,11 @@ export class LinkFortySDK {
       headers['Authorization'] = `Bearer ${this.config.apiKey}`;
     }
 
+    // Names the app's workspace: scopes link lookups to it.
+    if (this.config.appToken) {
+      headers['X-LinkForty-App-Token'] = this.config.appToken;
+    }
+
     const response = await fetch(url, {
       ...options,
       headers: {
@@ -582,8 +604,10 @@ export class LinkFortySDK {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Network error' }));
-      throw new Error(error.message || `HTTP ${response.status}`);
+      const body = await response.json().catch(() => ({ message: 'Network error' }));
+      const error: Error & { status?: number } = new Error(body.message || `HTTP ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     return response.json();
