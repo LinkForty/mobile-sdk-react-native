@@ -1,3 +1,7 @@
+## <small>1.7.1 (2026-10-21)</small>
+
+* fix(deeplink): deliver the deferred deep link once, on the launch that reports the install (#10) ([4f656b4](https://github.com/LinkForty/mobile-sdk-react-native/commit/4f656b4)), closes [#10](https://github.com/LinkForty/mobile-sdk-react-native/issues/10)
+
 ## 1.7.0 (2026-10-21)
 
 * feat(deeplink): look up links on the workspace's link hosts, and name the app on every request (#9) ([5719ddc](https://github.com/LinkForty/mobile-sdk-react-native/commit/5719ddc)), closes [#9](https://github.com/LinkForty/mobile-sdk-react-native/issues/9)
