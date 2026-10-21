@@ -8,6 +8,7 @@ import { DeepLinkHandler } from './DeepLinkHandler';
 import { AttributionContext } from './AttributionContext';
 import { NavigationTracker } from './NavigationTracker';
 import { LinkDomains } from './LinkDomains';
+import { DeferredDeepLink } from './DeferredDeepLink';
 import { SDK_NAME, SDK_VERSION } from './version';
 import type {
   LinkFortyConfig,
@@ -28,7 +29,8 @@ const STORAGE_KEYS = {
 export class LinkFortySDK {
   private config: LinkFortyConfig | null = null;
   private deepLinkHandler: DeepLinkHandler | null = null;
-  private deferredDeepLinkCallback: DeferredDeepLinkCallback | null = null;
+  /** Delivers the deferred deep link on the launch that reports the install */
+  private deferredDeepLink = new DeferredDeepLink();
   private installId: string | null = null;
   private externalUserId: string | null = null;
   private initialized: boolean = false;
@@ -165,17 +167,13 @@ export class LinkFortySDK {
   }
 
   /**
-   * Register callback for deferred deep links (new installs)
+   * Register callback for deferred deep links, called once on the launch that
+   * reports the install: with the link's data, or null for an organic install.
+   * Can be registered before or after init(). Later launches don't call it;
+   * use getInstallData() for the install's link data.
    */
   onDeferredDeepLink(callback: DeferredDeepLinkCallback): void {
-    this.deferredDeepLinkCallback = callback;
-
-    // If we already have install data, call the callback immediately
-    this.getInstallData().then((data) => {
-      if (data && this.deferredDeepLinkCallback) {
-        this.deferredDeepLinkCallback(data);
-      }
-    });
+    this.deferredDeepLink.register(callback);
   }
 
   /**
@@ -533,10 +531,7 @@ export class LinkFortySDK {
           await this.attribution.recordDeepLinkOpen(deepLinkData.linkId);
         }
 
-        // Call deferred deep link callback if registered
-        if (this.deferredDeepLinkCallback) {
-          this.deferredDeepLinkCallback(deepLinkData);
-        }
+        this.deferredDeepLink.deliver(deepLinkData);
 
         if (this.config.debug) {
           console.log('[LinkForty] Install attributed with confidence:', response.confidenceScore);
@@ -547,18 +542,14 @@ export class LinkFortySDK {
           console.log('[LinkForty] Install not attributed (organic install)');
         }
 
-        // Call callback with null to indicate organic install
-        if (this.deferredDeepLinkCallback) {
-          this.deferredDeepLinkCallback(null);
-        }
+        // null indicates an organic install
+        this.deferredDeepLink.deliver(null);
       }
     } catch (error) {
       console.error('[LinkForty] Failed to report install:', error);
 
-      // Call callback with null on error
-      if (this.deferredDeepLinkCallback) {
-        this.deferredDeepLinkCallback(null);
-      }
+      // null on error
+      this.deferredDeepLink.deliver(null);
     }
   }
 
