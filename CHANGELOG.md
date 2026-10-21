@@ -1,3 +1,7 @@
+## 1.8.0 (2026-10-21)
+
+* feat(attribution): expose install match certainty on the deferred deep link (#11) ([b516616](https://github.com/LinkForty/mobile-sdk-react-native/commit/b516616)), closes [#11](https://github.com/LinkForty/mobile-sdk-react-native/issues/11)
+
 ## <small>1.7.1 (2026-10-21)</small>
 
 * fix(deeplink): deliver the deferred deep link once, on the launch that reports the install (#10) ([4f656b4](https://github.com/LinkForty/mobile-sdk-react-native/commit/4f656b4)), closes [#10](https://github.com/LinkForty/mobile-sdk-react-native/issues/10)
