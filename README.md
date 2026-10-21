@@ -203,7 +203,7 @@ LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {
 
 ### `onDeferredDeepLink(callback)`
 
-Listen for deferred deep links. Called on first launch after install if the user clicked a LinkForty link before installing.
+Listen for deferred deep links. Called once, on the launch that reports the install: with the link's data if the user clicked a LinkForty link before installing, or `null` for an organic install. It can be registered before or after `init()`. Later launches don't call it; use `getInstallData()` for the install's link data.
 
 ```typescript
 LinkForty.onDeferredDeepLink((data: DeepLinkData | null) => {
