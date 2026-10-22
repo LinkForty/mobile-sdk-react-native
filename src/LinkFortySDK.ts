@@ -10,6 +10,7 @@ import { NavigationTracker } from './NavigationTracker';
 import { LinkDomains } from './LinkDomains';
 import { DeferredDeepLink, deferredDeepLinkFromInstall } from './DeferredDeepLink';
 import { SDK_NAME, SDK_VERSION } from './version';
+import { readPlayInstallReferrer } from './InstallReferrer';
 import type {
   LinkFortyConfig,
   InstallAttributionResponse,
@@ -456,11 +457,16 @@ export class LinkFortySDK {
     }
 
     try {
-      // Collect device fingerprint
-      const fingerprint = await FingerprintCollector.collect();
+      // Collect device fingerprint, and on Android the Play install referrer,
+      // which names the click exactly
+      const [fingerprint, installReferrer] = await Promise.all([
+        FingerprintCollector.collect(),
+        readPlayInstallReferrer(),
+      ]);
 
       if (this.config.debug) {
         console.log('[LinkForty] Reporting install with fingerprint:', fingerprint);
+        console.log('[LinkForty] Play install referrer:', installReferrer);
       }
 
       // Parse screen resolution (e.g., "1080x1920" -> [1080, 1920])
@@ -494,6 +500,8 @@ export class LinkFortySDK {
             // entirely when not configured — server treats absence as
             // "scope organic installs to no workspace" (current behavior).
             appToken: this.config.appToken,
+            // Google Play install referrer (Android); omitted when there is none
+            installReferrer: installReferrer ?? undefined,
           }),
         }
       );

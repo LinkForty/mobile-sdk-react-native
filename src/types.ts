@@ -176,11 +176,12 @@ export interface DeepLinkData {
 }
 
 /**
- * How an install was attributed: `'fingerprint'` when it was matched to a
- * click, `'none'` for an organic install. Other values may be added by newer
+ * How an install was attributed: `'install_referrer'` when the Google Play
+ * install referrer named the click, `'fingerprint'` when device signals matched
+ * one, `'none'` for an organic install. Other values may be added by newer
  * servers.
  */
-export type AttributionMethod = 'fingerprint' | 'none' | (string & {});
+export type AttributionMethod = 'install_referrer' | 'fingerprint' | 'none' | (string & {});
 
 /**
  * Response from install attribution endpoint
