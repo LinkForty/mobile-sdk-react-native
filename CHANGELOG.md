@@ -1,3 +1,7 @@
+## 1.9.0 (2026-10-22)
+
+* feat(attribution): send the Google Play install referrer with the install (#12) ([d471e53](https://github.com/LinkForty/mobile-sdk-react-native/commit/d471e53)), closes [#12](https://github.com/LinkForty/mobile-sdk-react-native/issues/12)
+
 ## 1.8.0 (2026-10-21)
 
 * feat(attribution): expose install match certainty on the deferred deep link (#11) ([b516616](https://github.com/LinkForty/mobile-sdk-react-native/commit/b516616)), closes [#11](https://github.com/LinkForty/mobile-sdk-react-native/issues/11)
