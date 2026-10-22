@@ -10,7 +10,7 @@ npm install @linkforty/mobile-sdk-react-native
 
 Peer dependencies are included automatically:
 - `@react-native-async-storage/async-storage` — persists install ID and attribution data
-- `react-native-device-info` — collects device fingerprint for attribution
+- `react-native-device-info` — collects device fingerprint for attribution, and the Google Play install referrer on Android
 
 For iOS, run pod install after:
 
@@ -64,8 +64,8 @@ interface DeepLinkData {
   confidenceScore?: number;
   /** Deferred deep links only: fingerprint factors that matched the click */
   matchedFactors?: string[];
-  /** Deferred deep links only: 'fingerprint' when matched to a click (newer values may appear) */
-  attributionMethod?: 'fingerprint' | 'none' | string;
+  /** Deferred deep links only: 'install_referrer' when the Play install referrer named the click, 'fingerprint' when matched by device signals (newer values may appear) */
+  attributionMethod?: 'install_referrer' | 'fingerprint' | 'none' | string;
   /**
    * Deferred deep links only: how many OTHER links had a click from the
    * install's network that also reached the confidence threshold. 0 = no other

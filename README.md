@@ -10,7 +10,7 @@ React Native SDK for [LinkForty](https://github.com/LinkForty/core) — the open
 - **Direct Deep Linking** - Handle Universal Links (iOS) and App Links (Android) with automatic server-side resolution
 - **Deferred Deep Linking** - Route new users to specific content after install
 - **Link Creation** - Create short links programmatically from your app
-- **Probabilistic Attribution** - Match installs to clicks via device fingerprinting
+- **Install Attribution** - Match installs to clicks exactly from the Google Play install referrer on Android, and otherwise via device fingerprinting
 - **Event Tracking** - Track in-app events with attribution
 - **Privacy-Focused** - No persistent device IDs required
 - **TypeScript Support** - Full type definitions included
@@ -396,7 +396,7 @@ interface DeepLinkData {
   // Deferred deep links only (onDeferredDeepLink / getInstallData):
   confidenceScore?: number;   // 0-100
   matchedFactors?: string[];  // e.g. ['ip', 'user_agent', 'timezone']
-  attributionMethod?: 'fingerprint' | 'none' | string;
+  attributionMethod?: 'install_referrer' | 'fingerprint' | 'none' | string;
   competingLinks?: number;
 }
 ```
@@ -469,7 +469,7 @@ When a user taps a LinkForty URL and the app is **not** installed:
 1. The LinkForty server records a click with the user's device fingerprint
 2. The user is redirected to the App Store / Play Store
 3. After installing and opening the app, the SDK reports the install with the device's fingerprint
-4. The server matches the fingerprint to the original click (probabilistic attribution)
+4. The server matches the fingerprint to the original click (probabilistic attribution). On Android, the SDK also sends the Google Play install referrer, read through `react-native-device-info` (waiting at most 2 seconds): a LinkForty link puts its click id in the referrer of the Play listing it sends the visitor to, so a server on `@linkforty/core` 1.41.1 or later matches the install to that exact click instead (`attributionMethod: 'install_referrer'`, `competingLinks: 0`)
 5. Your `onDeferredDeepLink` callback fires with the matched link data
 6. Your app navigates to the content the user originally clicked on
 
