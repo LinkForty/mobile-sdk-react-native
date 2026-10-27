@@ -8,9 +8,16 @@
 npm install @linkforty/mobile-sdk-react-native
 ```
 
-Peer dependencies are included automatically:
+Also install the SDK's two native dependencies in the app itself, at the SDK's major versions. React Native autolinking only links native modules listed in the app's own package.json, and AsyncStorage 3.x registers a different native module name than the 2.x the SDK uses:
+
+```bash
+npm install @react-native-async-storage/async-storage@^2.2.0 react-native-device-info@^15.0.0
+```
+
 - `@react-native-async-storage/async-storage` — persists install ID and attribution data
 - `react-native-device-info` — collects device fingerprint for attribution, and the Google Play install referrer on Android
+
+Requires React Native >= 0.65 (AsyncStorage 2.x's floor), React >= 17.
 
 For iOS, run pod install after:
 
@@ -22,22 +29,26 @@ cd ios && pod install
 
 ```typescript
 interface LinkFortyConfig {
-  /** Base URL of your LinkForty instance (e.g., 'https://go.yourdomain.com') */
+  /** 'https://api.linkforty.com' on the hosted service; your server's URL if self-hosting Core */
   baseUrl: string;
   /** API key — only needed if calling createLink() */
   apiKey?: string;
   /**
-   * Public workspace token (LinkForty Cloud only). Recommended — required
-   * for organic installs (App Store discovery, social mentions, etc.) to
-   * be attributed to your workspace. Find it in the dashboard under
-   * Workspace Settings → App Token. Format: `at_<32 hex chars>`. Safe to
-   * ship in your app bundle (workspace identifier only, not auth).
+   * Public workspace token. Required on the hosted service: it scopes install
+   * matching and link lookups to your workspace, attributes organic installs
+   * to it, and lets the SDK learn your workspace's link hosts. Find it in the
+   * dashboard under Settings → App Configuration. Format: `at_<32 hex chars>`.
+   * Safe to ship in your app bundle (workspace identifier only, not auth).
    */
   appToken?: string;
   /** Enable debug logging (default: false) */
   debug?: boolean;
   /** Attribution window in days (default: 7) */
   attributionWindow?: number;
+  /** Emit screen_view events from React Navigation (opt-in); requires navigationRef */
+  autoTrackNavigation?: boolean | { captureParams?: string[]; debounceMs?: number };
+  /** React Navigation container ref (createNavigationContainerRef()) */
+  navigationRef?: NavigationContainerRefLike;
 }
 
 interface DeepLinkData {
@@ -94,6 +105,8 @@ interface CreateLinkOptions {
     term?: string;
     content?: string;
   };
+  /** Your user ID for this link; overrides setExternalUserId() */
+  externalUserId?: string;
 }
 
 interface CreateLinkResult {
@@ -101,6 +114,8 @@ interface CreateLinkResult {
   url: string;
   shortCode: string;
   linkId: string;
+  /** True when an existing link for this user was returned instead of a new one */
+  deduplicated?: boolean;
 }
 
 type DeepLinkCallback = (url: string, deepLinkData: DeepLinkData | null) => void;
@@ -117,13 +132,13 @@ import LinkFortySDK from '@linkforty/mobile-sdk-react-native';
 
 ### init(config: LinkFortyConfig): Promise\<void\>
 
-Initialize the SDK. Must be called before any other method. Call this early in your app lifecycle (App.tsx or index.js).
+Initialize the SDK. Must be called before any other method. Call this early in your app lifecycle (App.tsx or index.js), and await it before calling onDeepLink(): onDeepLink() throws if init() was never called, and one registered while init() is still running only recognizes links on the baseUrl host. Calling init() twice logs a warning and does nothing.
 
 ```typescript
 await LinkFortySDK.init({
-  baseUrl: 'https://go.yourdomain.com',
-  apiKey: 'lf_live_abc123',   // optional — only for createLink()
-  appToken: 'at_a1b2c3d4...', // recommended for Cloud — enables organic-install attribution
+  baseUrl: 'https://api.linkforty.com', // hosted service; your own server's URL if self-hosting
+  appToken: 'at_a1b2c3d4...', // required on the hosted service
+  apiKey: 'lf_live_abc123',   // optional — only for createLink(); a secret
   debug: __DEV__,
   attributionWindow: 7,        // days
 });
@@ -162,7 +177,7 @@ LinkFortySDK.onDeferredDeepLink((data) => {
 
 ### trackEvent(name: string, properties?: Record\<string, any\>): Promise\<void\>
 
-Track in-app events for attribution and conversion analysis.
+Track in-app events for attribution and conversion analysis. Needs the install ID from the first-launch install report; without it the call logs a warning and sends nothing. There is no offline queue: a failed send is logged and dropped, not retried.
 
 ```typescript
 await LinkFortySDK.trackEvent('purchase', {
@@ -173,9 +188,21 @@ await LinkFortySDK.trackEvent('purchase', {
 });
 ```
 
+### trackRevenue(amount: number, currency: string, properties?: Record\<string, any\>): Promise\<void\>
+
+Track a revenue event: sends an event named `revenue` with `revenue` and `currency` added to its properties. Throws if `amount` is negative.
+
+```typescript
+await LinkFortySDK.trackRevenue(59.99, 'USD', { orderId: 'order_123' });
+```
+
+### setExternalUserId(id: string | null): void
+
+Set your user ID, attached to every createLink() call unless the call passes its own `externalUserId`. Kept in memory only; set it again after each launch.
+
 ### createLink(options: CreateLinkOptions): Promise\<CreateLinkResult\>
 
-Create a shareable LinkForty link from within the app. Requires `apiKey` in the init config. When `templateId` is omitted, the server auto-selects the organization's default template.
+Create a shareable LinkForty link from within the app. Requires `apiKey` in the init config. When `templateId` is omitted, the SDK calls `POST /api/sdk/v1/links` and the server auto-selects the organization's default template; that endpoint is on the hosted service, not self-hosted Core, where you pass `templateId` (and `templateSlug`) instead.
 
 ```typescript
 const result = await LinkFortySDK.createLink({
@@ -205,16 +232,24 @@ Get the unique install ID assigned on first launch.
 
 ### clearData(): Promise\<void\>
 
-Clear all cached SDK data (install ID, attribution, first-launch flag). Use on user logout.
+Clear all cached SDK data (install ID, attribution, first-launch flag). The next launch reports a new install, so use it for testing, not on user logout.
 
 ## iOS Platform Setup
 
 1. Open your project in Xcode.
 2. Select your target → Signing & Capabilities → + Capability → Associated Domains.
 3. Add: `applinks:go.yourdomain.com`
-4. In `AppDelegate.mm`, ensure Universal Links are forwarded (usually automatic with React Native's Linking module):
+4. Forward incoming links to React Native in `AppDelegate`. This is required: without it iOS opens the app from a Universal Link but JavaScript never receives the URL, so onDeepLink never fires. In `AppDelegate.mm` (Swift: the equivalent `RCTLinkingManager.application(...)` calls):
 
 ```objc
+#import <React/RCTLinkingManager.h>
+
+- (BOOL)application:(UIApplication *)application
+            openURL:(NSURL *)url
+            options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options {
+  return [RCTLinkingManager application:application openURL:url options:options];
+}
+
 - (BOOL)application:(UIApplication *)application
     continueUserActivity:(NSUserActivity *)userActivity
     restorationHandler:(void (^)(NSArray<id<UIUserActivityRestoring>> *))restorationHandler {
@@ -224,7 +259,9 @@ Clear all cached SDK data (install ID, attribution, first-launch flag). Use on u
 }
 ```
 
-5. LinkForty automatically serves `/.well-known/apple-app-site-association` from your domain.
+Apps with a `SceneDelegate` forward links from the scene delegate instead.
+
+5. LinkForty automatically serves `/.well-known/apple-app-site-association` from your domain (self-hosted Core: set `IOS_TEAM_ID` and `IOS_BUNDLE_ID`).
 
 ## Android Platform Setup
 
@@ -255,7 +292,7 @@ public void onNewIntent(Intent intent) {
 }
 ```
 
-3. LinkForty automatically serves `/.well-known/assetlinks.json` from your domain.
+3. LinkForty automatically serves `/.well-known/assetlinks.json` from your domain (self-hosted Core: set `ANDROID_PACKAGE_NAME` and `ANDROID_SHA256_FINGERPRINTS`).
 
 ## Complete Integration Example
 
@@ -275,7 +312,7 @@ export default function App() {
   useEffect(() => {
     async function initLinkForty() {
       await LinkFortySDK.init({
-        baseUrl: 'https://go.yourdomain.com',
+        baseUrl: 'https://api.linkforty.com',
         apiKey: 'lf_live_abc123',
         appToken: 'at_a1b2c3d4...',
         debug: __DEV__,
@@ -352,16 +389,14 @@ npx uri-scheme open "https://go.yourdomain.com/abc123" --ios
 npx uri-scheme open "https://go.yourdomain.com/abc123" --android
 ```
 
-## Self-Hosted vs Cloud
-
-The only change is the `baseUrl`:
+## Hosted service vs self-hosted
 
 ```typescript
-// Cloud (managed SaaS)
-await LinkFortySDK.init({ baseUrl: 'https://go.linkforty.com' });
+// Hosted service: appToken is required
+await LinkFortySDK.init({ baseUrl: 'https://api.linkforty.com', appToken: 'at_a1b2c3d4...' });
 
-// Self-hosted (@linkforty/core)
+// Self-hosted (@linkforty/core): your server's URL
 await LinkFortySDK.init({ baseUrl: 'https://links.yourdomain.com' });
 ```
 
-All SDK methods work identically with both.
+Differences on self-hosted Core: createLink() needs a `templateId` (Core has no `POST /api/sdk/v1/links`), and the SDK looks up links on the `baseUrl` host only (Core has no link-domains endpoint).

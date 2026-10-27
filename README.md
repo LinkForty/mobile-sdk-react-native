@@ -12,9 +12,9 @@ React Native SDK for [LinkForty](https://github.com/LinkForty/core) — the open
 - **Link Creation** - Create short links programmatically from your app
 - **Install Attribution** - Match installs to clicks exactly from the Google Play install referrer on Android, and otherwise via device fingerprinting
 - **Event Tracking** - Track in-app events with attribution
-- **Privacy-Focused** - No persistent device IDs required
+- **Privacy-Focused** - No advertising IDs (IDFA/GAID) and no App Tracking Transparency prompt (see [Data collected](#data-collected))
 - **TypeScript Support** - Full type definitions included
-- **Works with Core & Cloud** - Compatible with self-hosted and Cloud instances
+- **Works with self-hosted Core and the hosted service** - Same SDK, different `baseUrl`
 
 ## Installation
 
@@ -24,15 +24,19 @@ npm install @linkforty/mobile-sdk-react-native
 
 ### Requirements
 
-- React Native >= 0.64.0
+- React Native >= 0.65.0 (the floor set by `@react-native-async-storage/async-storage` 2.x, which the SDK depends on)
 - React >= 17.0.0
 - Node.js >= 20.0.0
 
-### Peer Dependencies
+### Native dependencies
+
+The SDK depends on two native modules. Install them in your app as well, at the major versions the SDK uses:
 
 ```bash
-npm install @react-native-async-storage/async-storage react-native-device-info
+npm install @react-native-async-storage/async-storage@^2.2.0 react-native-device-info@^15.0.0
 ```
+
+React Native's autolinking only links native modules listed in your app's own `package.json`, so without this step their native code is not built into the app. Keep AsyncStorage on 2.x: version 3 registers its native module under a different name, so the SDK (which uses 2.x) would not find it.
 
 Only if you use [automatic screen tracking](#automatic-screen-tracking-autotracknavigation) (`autoTrackNavigation`), install React Navigation — it's an **optional** peer dependency and not required otherwise:
 
@@ -52,33 +56,62 @@ cd ios && pod install
    - Open your project in Xcode
    - Select your app target > Signing & Capabilities
    - Add "Associated Domains" capability
-   - Add domain: `applinks:go.yourdomain.com` (replace with your LinkForty domain)
+   - Add domain: `applinks:go.yourdomain.com` (replace with your link host; add one entry per host your links use)
 
-3. Host an Apple App Site Association (AASA) file at:
-   ```
-   https://go.yourdomain.com/.well-known/apple-app-site-association
-   ```
+3. **Forward incoming links to React Native in your `AppDelegate`.** Without this, iOS opens your app from a Universal Link but JavaScript never receives the URL, so `onDeepLink` never fires. Add both methods: the first handles URL-scheme links, the second Universal Links.
 
-   ```json
-   {
-     "applinks": {
-       "apps": [],
-       "details": [
-         {
-           "appID": "TEAM_ID.com.yourapp.bundle",
-           "paths": ["*"]
-         }
-       ]
-     }
+   In `AppDelegate.swift`:
+
+   ```swift
+   import React // for RCTLinkingManager
+
+   func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+     return RCTLinkingManager.application(app, open: url, options: options)
+   }
+
+   func application(
+     _ application: UIApplication,
+     continue userActivity: NSUserActivity,
+     restorationHandler: @escaping ([UIUserActivityRestoring]?) -> Void
+   ) -> Bool {
+     return RCTLinkingManager.application(application, continue: userActivity, restorationHandler: restorationHandler)
    }
    ```
 
+   Or in `AppDelegate.mm`:
+
+   ```objc
+   #import <React/RCTLinkingManager.h>
+
+   - (BOOL)application:(UIApplication *)application
+               openURL:(NSURL *)url
+               options:(NSDictionary<UIApplicationOpenURLOptionsKey, id> *)options
+   {
+     return [RCTLinkingManager application:application openURL:url options:options];
+   }
+
+   - (BOOL)application:(UIApplication *)application
+       continueUserActivity:(nonnull NSUserActivity *)userActivity
+         restorationHandler:(nonnull void (^)(NSArray<id<UIUserActivityRestoring>> * _Nullable))restorationHandler
+   {
+     return [RCTLinkingManager application:application
+                      continueUserActivity:userActivity
+                        restorationHandler:restorationHandler];
+   }
+   ```
+
+   If your app uses a `SceneDelegate` (it declares `UIApplicationSceneManifest` in `Info.plist`), iOS delivers links to the scene instead, so forward them from the `SceneDelegate`. See React Native's [Linking guide](https://reactnative.dev/docs/linking).
+
+4. The Apple App Site Association file is served by your LinkForty server at `https://go.yourdomain.com/.well-known/apple-app-site-association`; you don't host it yourself. On self-hosted [LinkForty Core](https://github.com/LinkForty/core), set the `IOS_TEAM_ID` and `IOS_BUNDLE_ID` environment variables; on the hosted service, enter your Team ID and bundle ID in the dashboard's app configuration. Check it with `curl https://go.yourdomain.com/.well-known/apple-app-site-association`.
+
 ### Android Setup
 
-1. Add an App Links intent filter in `android/app/src/main/AndroidManifest.xml`:
+1. Add an App Links intent filter to your main activity in `android/app/src/main/AndroidManifest.xml`, with `android:launchMode="singleTask"` so a link opens the running app instead of a second copy of the activity:
 
 ```xml
-<activity android:name=".MainActivity">
+<activity
+  android:name=".MainActivity"
+  android:launchMode="singleTask">
   <intent-filter android:autoVerify="true">
     <action android:name="android.intent.action.VIEW" />
     <category android:name="android.intent.category.DEFAULT" />
@@ -89,21 +122,7 @@ cd ios && pod install
 </activity>
 ```
 
-2. Host a Digital Asset Links file at:
-   ```
-   https://go.yourdomain.com/.well-known/assetlinks.json
-   ```
-
-   ```json
-   [{
-     "relation": ["delegate_permission/common.handle_all_urls"],
-     "target": {
-       "namespace": "android_app",
-       "package_name": "com.yourapp",
-       "sha256_cert_fingerprints": ["YOUR_SHA256_FINGERPRINT"]
-     }
-   }]
-   ```
+2. The Digital Asset Links file is served by your LinkForty server at `https://go.yourdomain.com/.well-known/assetlinks.json`; you don't host it yourself. On self-hosted LinkForty Core, set the `ANDROID_PACKAGE_NAME` and `ANDROID_SHA256_FINGERPRINTS` (comma-separated) environment variables; on the hosted service, enter your package name and signing-certificate SHA-256 fingerprints in the dashboard's app configuration.
 
 3. Ensure `MainActivity` preserves the Intent for React Native. In `MainActivity.kt`:
 
@@ -121,11 +140,10 @@ override fun onNewIntent(intent: Intent) {
 ```typescript
 import LinkForty from '@linkforty/mobile-sdk-react-native';
 
-// 1. Initialize the SDK (call once at app startup)
+// 1. Initialize the SDK (call once at app startup, and await it before step 2)
 await LinkForty.init({
-  baseUrl: 'https://go.yourdomain.com',
-  apiKey: 'your-api-key',         // Required for createLink(), optional otherwise
-  appToken: 'at_a1b2c3d4...',     // Recommended for Cloud — enables organic-install attribution
+  baseUrl: 'https://api.linkforty.com', // hosted service; or your own server's URL if you self-host
+  appToken: 'at_a1b2c3d4...',           // Required on the hosted service
   debug: __DEV__,
 });
 
@@ -149,29 +167,35 @@ LinkForty.onDeferredDeepLink((data) => {
 });
 ```
 
+Await `init()` before calling `onDeepLink()`: `onDeepLink()` throws if `init()` was never called, and one registered while `init()` is still running recognizes links on the `baseUrl` host only, not your workspace's other link hosts.
+
 ## API Reference
 
 ### `init(config)`
 
-Initialize the SDK. Must be called before any other method.
+Initialize the SDK. Must be called before any other method. Calling it a second time logs a warning and does nothing.
+
+On the first launch it reports the install (and on Android waits up to 2 seconds for the Google Play install referrer) before it resolves.
 
 ```typescript
 await LinkForty.init({
-  baseUrl: 'https://go.yourdomain.com', // Required
-  apiKey: 'your-api-key',               // Optional (required for createLink)
-  appToken: 'at_a1b2c3d4...',           // Optional (recommended for Cloud — enables organic-install attribution)
-  debug: true,                           // Optional (default: false)
-  attributionWindow: 7,                  // Optional, in days (default: 7)
+  baseUrl: 'https://api.linkforty.com', // Required
+  appToken: 'at_a1b2c3d4...',           // Required on the hosted service
+  apiKey: 'your-api-key',               // Optional (only needed for createLink)
+  debug: true,                          // Optional (default: false)
+  attributionWindow: 7,                 // Optional, in days (default: 7)
 });
 ```
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `baseUrl` | `string` | Yes | Base URL of your LinkForty instance |
-| `apiKey` | `string` | No | API key for authenticated endpoints (Cloud) |
-| `appToken` | `string` | No | Public workspace token. **Recommended for Cloud** — required for organic installs (App Store discovery, social mentions, etc.) to be attributed to your workspace. Find it in the dashboard under Workspace Settings → App Token. Format: `at_<32 hex chars>`. Safe to ship in your app bundle. |
-| `debug` | `boolean` | No | Enable debug logging |
+| `baseUrl` | `string` | Yes | `https://api.linkforty.com` on the hosted service; your server's URL if you self-host LinkForty Core |
+| `appToken` | `string` | Hosted service: yes | Public workspace token, sent on every request. On the hosted service it scopes install matching and link lookups to your workspace, attributes organic installs (App Store discovery, social mentions, etc.) to it, and lets the SDK learn your workspace's link hosts. Find it in the dashboard under Settings → App Configuration. Format: `at_<32 hex chars>`. Safe to ship in your app bundle. |
+| `apiKey` | `string` | No | API key, only needed for `createLink()`. It is a secret: don't ship one in your app unless you create links from it. |
+| `debug` | `boolean` | No | Enable debug logging (default: `false`) |
 | `attributionWindow` | `number` | No | Attribution window in days (default: 7) |
+| `autoTrackNavigation` | `boolean \| { captureParams?: string[]; debounceMs?: number }` | No | Emit `screen_view` events from React Navigation. See [Automatic Screen Tracking](#automatic-screen-tracking-autotracknavigation). Default: off |
+| `navigationRef` | `NavigationContainerRefLike` | With `autoTrackNavigation` | Your React Navigation container ref |
 
 ---
 
@@ -181,9 +205,11 @@ Listen for direct deep links. Called when the app is opened via a Universal Link
 
 When the URL is a LinkForty link, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing. Any other URL reaches the callback with `data` set to `null`.
 
-A LinkForty link is an `http(s)` URL on your `baseUrl` host or, with `appToken` set, on one of your workspace's link hosts: its `toapp.me` label and verified custom domains. The SDK learns those hosts from the server at launch and saves them for the next one. With `appToken` set, a lookup answers only with your own workspace's links.
+A LinkForty link is an `http(s)` URL on your `baseUrl` host or, with `appToken` set, on one of your workspace's link hosts. The SDK learns those hosts from the server at launch (`GET /api/sdk/v1/link-domains`) and saves them for the next one. On the hosted service they are your workspace's `toapp.me` subdomain and verified custom domains, and with `appToken` set a lookup answers only with your own workspace's links. A server without that endpoint (such as self-hosted LinkForty Core) leaves the SDK looking up links on the `baseUrl` host only, so point `baseUrl` at the host your links use.
 
 ```typescript
+import type { DeepLinkData } from '@linkforty/mobile-sdk-react-native';
+
 LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {
   console.log('Link URL:', url);
 
@@ -197,7 +223,7 @@ LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {
 | Callback Parameter | Type | Description |
 |--------------------|------|-------------|
 | `url` | `string` | The full URL that opened the app |
-| `data` | `DeepLinkData \| null` | Parsed link data, or `null` if parsing failed |
+| `data` | `DeepLinkData \| null` | Resolved link data, or `null` when the URL is not a LinkForty link or can't be parsed |
 
 ---
 
@@ -206,6 +232,8 @@ LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {
 Listen for deferred deep links. Called once, on the launch that reports the install: with the link's data if the user clicked a LinkForty link before installing, or `null` for an organic install. It can be registered before or after `init()`. Later launches don't call it; use `getInstallData()` for the install's link data.
 
 ```typescript
+import type { DeepLinkData } from '@linkforty/mobile-sdk-react-native';
+
 LinkForty.onDeferredDeepLink((data: DeepLinkData | null) => {
   if (data) {
     // Attributed install — user clicked a link before installing
@@ -241,7 +269,7 @@ LinkForty.onDeferredDeepLink((data) => {
 
 Create a short link programmatically. Requires `apiKey` to be set in `init()`.
 
-When `templateId` is omitted, the server auto-selects your organization's default template.
+When `templateId` is omitted, the SDK calls `POST /api/sdk/v1/links`, where the server auto-selects your organization's default template. That endpoint is on the hosted service; self-hosted LinkForty Core doesn't have it, so pass a `templateId` (and `templateSlug`) there, which uses `POST /api/links`.
 
 ```typescript
 const result = await LinkForty.createLink({
@@ -266,6 +294,7 @@ console.log(result.linkId);    // uuid
 | `utmParameters` | `object` | No | UTM parameters (`source`, `medium`, `campaign`, `term`, `content`) |
 | `templateId` | `string` | No | Template UUID (auto-selected if omitted) |
 | `templateSlug` | `string` | No | Template slug (only needed with `templateId`) |
+| `externalUserId` | `string` | No | Your user ID for this link; overrides the value set with `setExternalUserId()` |
 
 **Returns:** `CreateLinkResult`
 
@@ -274,12 +303,26 @@ console.log(result.linkId);    // uuid
 | `url` | `string` | Full shareable URL |
 | `shortCode` | `string` | The generated short code |
 | `linkId` | `string` | Link UUID |
+| `deduplicated` | `boolean \| undefined` | `true` when the server returned an existing link for this user instead of creating one |
+
+---
+
+### `setExternalUserId(id)` / `getExternalUserId()`
+
+Set your own user ID, attached to every `createLink()` call unless the call passes its own `externalUserId`. Pass `null` to clear it. It is kept in memory only, so set it again after each launch (for example after sign-in).
+
+```typescript
+LinkForty.setExternalUserId('user_123');
+LinkForty.getExternalUserId(); // 'user_123'
+```
 
 ---
 
 ### `trackEvent(name, properties?)`
 
-Track an in-app event for attribution analytics. Requires a successful install report (automatic on first launch).
+Track an in-app event for attribution analytics. Requires a successful install report (automatic on first launch); without an install ID the call logs a warning and sends nothing.
+
+Events are sent once, straight away. There is no offline queue: an event that fails to send (no connection, server error) is logged and dropped, not retried.
 
 ```typescript
 await LinkForty.trackEvent('purchase', {
@@ -295,6 +338,22 @@ await LinkForty.trackEvent('purchase', {
 | `properties` | `Record<string, any>` | No | Arbitrary event properties |
 
 > **Attribution:** every tracked event (including auto screen views) is automatically attributed to the deep link that drove the visit using a last-click model — so re-engagement campaigns (a link tapped by an already-installed user) are credited to the link they tapped, not their original install link.
+
+---
+
+### `trackRevenue(amount, currency, properties?)`
+
+Track a revenue event. Sends an event named `revenue` with `revenue` and `currency` added to its properties, the convention every LinkForty SDK uses. Throws if `amount` is negative.
+
+```typescript
+await LinkForty.trackRevenue(29.99, 'USD', { productId: 'premium_plan', orderId: 'order-456' });
+```
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `amount` | `number` | Yes | Non-negative revenue amount |
+| `currency` | `string` | Yes | ISO 4217 currency code (e.g. `'USD'`) |
+| `properties` | `Record<string, any>` | No | Additional event properties |
 
 ---
 
@@ -319,7 +378,8 @@ await LinkForty.init({
 ```
 
 - `@react-navigation/native` is an **optional** peer dependency. Apps that don't use it simply omit `navigationRef` — nothing changes and there's no required dependency.
-- Rapid transitions are debounced and same-screen re-renders are deduped.
+- Each `screen_view` carries `screen` (the route name), `previousScreen` when there is one, and `params` only for allow-listed keys.
+- Rapid transitions are debounced (`debounceMs`, default 350) and same-screen re-renders are deduped.
 - **Route params are OFF by default** (privacy-safe): only the screen name is captured, since params can contain PII and the SDK runs inside your app. To capture specific non-PII params, opt in with an explicit allow-list:
 
 ```typescript
@@ -370,6 +430,17 @@ Clear all cached SDK data (install ID, attribution data, first-launch flag). The
 ```typescript
 await LinkForty.clearData();
 ```
+
+## Data collected
+
+To match an install or a direct open to a link click, the SDK sends:
+
+- **On the install report (first launch):** user agent, timezone, device language, screen width and height, platform (`ios`/`android`), OS version, and on Android the Google Play install referrer. The server also sees the request's IP address.
+- **On a direct deep link open:** the link's path, with timezone, language, screen size, platform and OS version.
+- **On each event:** the server-assigned install ID, the event name and the properties you pass, a timestamp, a session ID, and the link currently credited for the visit.
+- **On every request:** the SDK's name and version, `appToken` if set, and `apiKey` if set.
+
+The SDK does not read the IDFA or GAID, does not show an App Tracking Transparency prompt, and does not use SKAdNetwork. It stores the install ID, the install's link data, the last link that opened the app and your workspace's link hosts in AsyncStorage; `clearData()` removes all of them except the link hosts.
 
 ## Types
 
@@ -437,6 +508,7 @@ interface CreateLinkOptions {
     term?: string;
     content?: string;
   };
+  externalUserId?: string;
 }
 ```
 
@@ -447,6 +519,7 @@ interface CreateLinkResult {
   url: string;
   shortCode: string;
   linkId: string;
+  deduplicated?: boolean;
 }
 ```
 
@@ -480,7 +553,8 @@ When a user taps a LinkForty URL and the app is **not** installed:
 1. Verify AASA file is accessible at `https://yourdomain.com/.well-known/apple-app-site-association`
 2. Check that Team ID and Bundle ID are correct in the AASA file
 3. Confirm "Associated Domains" capability is added in Xcode with `applinks:yourdomain.com`
-4. Test on a real device (Universal Links don't work in the simulator)
+4. If the app opens from the link but `onDeepLink` never fires, the `AppDelegate` (or `SceneDelegate`) methods that forward links to `RCTLinkingManager` are missing (see [iOS Setup](#ios-setup), step 3)
+5. Test on a real device (Universal Links don't work in the simulator)
 
 ### Deep links not working on Android
 
@@ -499,7 +573,7 @@ This usually means another SDK or library is consuming the Intent data before Re
 
 ### Deferred deep links not attributing
 
-1. Confirm this is a first install (or call `clearData()` first)
+1. Confirm this is a first install (or call `clearData()` first). The install is reported once, on the first launch, and a report that fails (for example with no connection) is not retried on later launches; `clearData()` and a relaunch report it again
 2. Enable `debug: true` and check logs for fingerprint data
 3. Verify your LinkForty server received the install event
 4. Ensure the click and install happen within the attribution window (default: 7 days)
@@ -507,11 +581,15 @@ This usually means another SDK or library is consuming the Intent data before Re
 
 ### TypeScript errors
 
-Ensure peer dependencies are installed:
+React Native ships its own type definitions, so `@types/react-native` is not needed (it is a deprecated stub). Make sure `@types/react` is installed:
 
 ```bash
-npm install --save-dev @types/react @types/react-native
+npm install --save-dev @types/react
 ```
+
+### `AsyncStorage is null` or a missing native module at runtime
+
+The native modules aren't linked into the app. Install them in your app at the SDK's major versions (see [Native dependencies](#native-dependencies)), run `cd ios && pod install`, and rebuild the app (a JavaScript reload is not enough).
 
 ## Contributing
 
@@ -528,6 +606,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 | Expo | [`@linkforty/mobile-sdk-expo`](https://github.com/LinkForty/mobile-sdk-expo) |
 | iOS (Swift) | [LinkFortySDK](https://github.com/LinkForty/mobile-sdk-ios) |
 | Android (Kotlin) | [LinkFortySDK](https://github.com/LinkForty/mobile-sdk-android) |
+| Flutter | [`linkforty_flutter`](https://github.com/LinkForty/mobile-sdk-flutter) |
 
 ## Support
 
