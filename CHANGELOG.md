@@ -24,11 +24,11 @@
 
 ## 1.6.0 (2026-06-10)
 
-* feat(sdk): report SDK name + version (SIT-235 · React Native) (#6) ([a4ebc5d](https://github.com/LinkForty/mobile-sdk-react-native/commit/a4ebc5d)), closes [#6](https://github.com/LinkForty/mobile-sdk-react-native/issues/6)
+* feat(sdk): report SDK name + version (#6) ([a4ebc5d](https://github.com/LinkForty/mobile-sdk-react-native/commit/a4ebc5d)), closes [#6](https://github.com/LinkForty/mobile-sdk-react-native/issues/6)
 
 ## 1.5.0 (2026-06-10)
 
-* feat: autoTrackNavigation + last-click attribution context (SIT-237) (#5) ([c3537bf](https://github.com/LinkForty/mobile-sdk-react-native/commit/c3537bf)), closes [#5](https://github.com/LinkForty/mobile-sdk-react-native/issues/5)
+* feat: autoTrackNavigation + last-click attribution context (#5) ([c3537bf](https://github.com/LinkForty/mobile-sdk-react-native/commit/c3537bf)), closes [#5](https://github.com/LinkForty/mobile-sdk-react-native/issues/5)
 
 ## 1.4.0 (2026-05-04)
 
@@ -36,7 +36,7 @@
 * Merge pull request #2 from LinkForty/feat/app-token ([b89b060](https://github.com/LinkForty/mobile-sdk-react-native/commit/b89b060)), closes [#2](https://github.com/LinkForty/mobile-sdk-react-native/issues/2)
 * update packages ([98b32fb](https://github.com/LinkForty/mobile-sdk-react-native/commit/98b32fb))
 * docs: surface appToken in llms.txt and README ([46c277f](https://github.com/LinkForty/mobile-sdk-react-native/commit/46c277f))
-* feat: add appToken config option for Cloud organic-install attribution ([bdb7a13](https://github.com/LinkForty/mobile-sdk-react-native/commit/bdb7a13)), closes [LinkForty/cloud#76](https://github.com/LinkForty/cloud/issues/76)
+* feat: add appToken config option for organic-install attribution on the hosted service ([bdb7a13](https://github.com/LinkForty/mobile-sdk-react-native/commit/bdb7a13))
 
 ## 1.3.0 (2026-03-17)
 

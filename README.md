@@ -24,19 +24,22 @@ npm install @linkforty/mobile-sdk-react-native
 
 ### Requirements
 
-- React Native >= 0.65.0 (the floor set by `@react-native-async-storage/async-storage` 2.x, which the SDK depends on)
+- React Native >= 0.65.0 (the floor set by `@react-native-async-storage/async-storage` 2.x)
 - React >= 17.0.0
 - Node.js >= 20.0.0
 
 ### Native dependencies
 
-The SDK depends on two native modules. Install them in your app as well, at the major versions the SDK uses:
+The SDK uses two native modules, which are peer dependencies: install them in your app, which then has a single copy of each that the SDK shares.
 
 ```bash
-npm install @react-native-async-storage/async-storage@^2.2.0 react-native-device-info@^15.0.0
+npm install @react-native-async-storage/async-storage react-native-device-info
 ```
 
-React Native's autolinking only links native modules listed in your app's own `package.json`, so without this step their native code is not built into the app. Keep AsyncStorage on 2.x: version 3 registers its native module under a different name, so the SDK (which uses 2.x) would not find it.
+- `@react-native-async-storage/async-storage` 2.2 or later, or 3.x. With 3.x the SDK uses its default (legacy) storage, which keeps the data written with 2.x, so upgrading AsyncStorage keeps the install ID. AsyncStorage 3.x has its own native requirements (for example Android `minSdk` 24 and a recent Kotlin Gradle plugin); stay on 2.x if your app can't meet them.
+- `react-native-device-info` 15.x.
+
+React Native's autolinking only links native modules listed in your app's own `package.json`, so without this step their native code is not built into the app.
 
 Only if you use [automatic screen tracking](#automatic-screen-tracking-autotracknavigation) (`autoTrackNavigation`), install React Navigation — it's an **optional** peer dependency and not required otherwise:
 
@@ -175,7 +178,7 @@ Await `init()` before calling `onDeepLink()`: `onDeepLink()` throws if `init()` 
 
 Initialize the SDK. Must be called before any other method. Calling it a second time logs a warning and does nothing.
 
-On the first launch it reports the install (and on Android waits up to 2 seconds for the Google Play install referrer) before it resolves.
+On the first launch it reports the install (and on Android waits up to 2 seconds for the Google Play install referrer) before it resolves. If the report fails (no connection, a server error), it is reported again on the next launch, and so on until the server accepts it; until then there is no install ID and `trackEvent()` sends nothing.
 
 ```typescript
 await LinkForty.init({
@@ -192,7 +195,7 @@ await LinkForty.init({
 | `baseUrl` | `string` | Yes | `https://api.linkforty.com` on the hosted service; your server's URL if you self-host LinkForty Core |
 | `appToken` | `string` | Hosted service: yes | Public workspace token, sent on every request. On the hosted service it scopes install matching and link lookups to your workspace, attributes organic installs (App Store discovery, social mentions, etc.) to it, and lets the SDK learn your workspace's link hosts. Find it in the dashboard under Settings → App Configuration. Format: `at_<32 hex chars>`. Safe to ship in your app bundle. |
 | `apiKey` | `string` | No | API key, only needed for `createLink()`. It is a secret: don't ship one in your app unless you create links from it. |
-| `debug` | `boolean` | No | Enable debug logging (default: `false`) |
+| `debug` | `boolean` | No | Log what the SDK does, including link URLs and link data, to the console (default: `false`). The API key is never logged. Without `debug` the SDK logs only failures: a failed install report or event, `init()` called twice, and an event dropped for lack of an install ID. |
 | `attributionWindow` | `number` | No | Attribution window in days (default: 7) |
 | `autoTrackNavigation` | `boolean \| { captureParams?: string[]; debounceMs?: number }` | No | Emit `screen_view` events from React Navigation. See [Automatic Screen Tracking](#automatic-screen-tracking-autotracknavigation). Default: off |
 | `navigationRef` | `NavigationContainerRefLike` | With `autoTrackNavigation` | Your React Navigation container ref |
@@ -229,7 +232,7 @@ LinkForty.onDeepLink((url: string, data: DeepLinkData | null) => {
 
 ### `onDeferredDeepLink(callback)`
 
-Listen for deferred deep links. Called once, on the launch that reports the install: with the link's data if the user clicked a LinkForty link before installing, or `null` for an organic install. It can be registered before or after `init()`. Later launches don't call it; use `getInstallData()` for the install's link data.
+Listen for deferred deep links. Called once, on the launch that reports the install: with the link's data if the user clicked a LinkForty link before installing, or `null` for an organic install. A launch whose report fails also calls it with `null`, and the launch that later reports the install successfully calls it again with that report's result. It can be registered before or after `init()`. Later launches don't call it; use `getInstallData()` for the install's link data.
 
 ```typescript
 import type { DeepLinkData } from '@linkforty/mobile-sdk-react-native';
@@ -320,7 +323,7 @@ LinkForty.getExternalUserId(); // 'user_123'
 
 ### `trackEvent(name, properties?)`
 
-Track an in-app event for attribution analytics. Requires a successful install report (automatic on first launch); without an install ID the call logs a warning and sends nothing.
+Track an in-app event for attribution analytics. Requires a successful install report (automatic on first launch, and retried on later launches if it fails); without an install ID the call logs a warning and sends nothing.
 
 Events are sent once, straight away. There is no offline queue: an event that fails to send (no connection, server error) is logged and dropped, not retried.
 
@@ -378,6 +381,7 @@ await LinkForty.init({
 ```
 
 - `@react-navigation/native` is an **optional** peer dependency. Apps that don't use it simply omit `navigationRef` — nothing changes and there's no required dependency.
+- The ref from `createNavigationContainerRef()` type-checks as `navigationRef` with React Navigation 7, with or without a param list (`createNavigationContainerRef<RootStackParamList>()`).
 - Each `screen_view` carries `screen` (the route name), `previousScreen` when there is one, and `params` only for allow-listed keys.
 - Rapid transitions are debounced (`debounceMs`, default 350) and same-screen re-renders are deduped.
 - **Route params are OFF by default** (privacy-safe): only the screen name is captured, since params can contain PII and the SDK runs inside your app. To capture specific non-PII params, opt in with an explicit allow-list:
@@ -413,7 +417,7 @@ if (data) {
 
 ### `getInstallId()`
 
-Get the unique install ID assigned by the LinkForty server on first launch.
+Get the unique install ID assigned by the LinkForty server when the install is reported (on first launch, or on a later launch if that report failed). `null` until then.
 
 ```typescript
 const installId = await LinkForty.getInstallId();
@@ -425,7 +429,7 @@ const installId = await LinkForty.getInstallId();
 
 ### `clearData()`
 
-Clear all cached SDK data (install ID, attribution data, first-launch flag). The next app launch will behave as a fresh install.
+Clear all cached SDK data (install ID, install link data, the install-reported flag, the attribution context and the saved link hosts, which are then fetched again). The next app launch will behave as a fresh install. Deep link listening keeps working.
 
 ```typescript
 await LinkForty.clearData();
@@ -440,7 +444,7 @@ To match an install or a direct open to a link click, the SDK sends:
 - **On each event:** the server-assigned install ID, the event name and the properties you pass, a timestamp, a session ID, and the link currently credited for the visit.
 - **On every request:** the SDK's name and version, `appToken` if set, and `apiKey` if set.
 
-The SDK does not read the IDFA or GAID, does not show an App Tracking Transparency prompt, and does not use SKAdNetwork. It stores the install ID, the install's link data, the last link that opened the app and your workspace's link hosts in AsyncStorage; `clearData()` removes all of them except the link hosts.
+The SDK does not read the IDFA or GAID, does not show an App Tracking Transparency prompt, and does not use SKAdNetwork. It stores the install ID, the install's link data, the last link that opened the app and your workspace's link hosts in AsyncStorage; `clearData()` removes all of them.
 
 ## Types
 
@@ -573,7 +577,7 @@ This usually means another SDK or library is consuming the Intent data before Re
 
 ### Deferred deep links not attributing
 
-1. Confirm this is a first install (or call `clearData()` first). The install is reported once, on the first launch, and a report that fails (for example with no connection) is not retried on later launches; `clearData()` and a relaunch report it again
+1. Confirm this is a first install (or call `clearData()` first). The install is reported on the first launch; a report that fails (for example with no connection) is retried on each later launch until it succeeds
 2. Enable `debug: true` and check logs for fingerprint data
 3. Verify your LinkForty server received the install event
 4. Ensure the click and install happen within the attribution window (default: 7 days)
@@ -589,7 +593,7 @@ npm install --save-dev @types/react
 
 ### `AsyncStorage is null` or a missing native module at runtime
 
-The native modules aren't linked into the app. Install them in your app at the SDK's major versions (see [Native dependencies](#native-dependencies)), run `cd ios && pod install`, and rebuild the app (a JavaScript reload is not enough).
+The native modules aren't linked into the app. Install them in your app (see [Native dependencies](#native-dependencies)), run `cd ios && pod install`, and rebuild the app (a JavaScript reload is not enough).
 
 ## Contributing
 
@@ -613,4 +617,4 @@ MIT License - see [LICENSE](LICENSE) for details.
 - **Documentation:** [docs.linkforty.com](https://docs.linkforty.com)
 - **Issues:** [GitHub Issues](https://github.com/LinkForty/mobile-sdk-react-native/issues)
 - **Core Engine:** [LinkForty Core](https://github.com/LinkForty/core) — self-hosted open-source backend
-- **Cloud Platform:** [LinkForty Cloud](https://linkforty.com) — hosted SaaS with dashboard, teams, and billing
+- **Hosted service:** [linkforty.com](https://linkforty.com) — dashboard, teams, and billing
