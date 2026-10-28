@@ -1,3 +1,7 @@
+## <small>1.9.2 (2026-10-28)</small>
+
+* fix: retry failed install reports, React Navigation 7 ref types, debug-only logging, peer deps (#15) ([b39eeed](https://github.com/LinkForty/mobile-sdk-react-native/commit/b39eeed)), closes [#15](https://github.com/LinkForty/mobile-sdk-react-native/issues/15)
+
 ## <small>1.9.1 (2026-10-28)</small>
 
 * docs: correct setup, requirements and API reference in README and llms.txt (#14) ([2afb8dd](https://github.com/LinkForty/mobile-sdk-react-native/commit/2afb8dd)), closes [#14](https://github.com/LinkForty/mobile-sdk-react-native/issues/14)
