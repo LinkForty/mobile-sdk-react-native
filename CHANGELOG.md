@@ -1,3 +1,7 @@
+## <small>1.9.1 (2026-10-28)</small>
+
+* docs: correct setup, requirements and API reference in README and llms.txt (#14) ([2afb8dd](https://github.com/LinkForty/mobile-sdk-react-native/commit/2afb8dd)), closes [#14](https://github.com/LinkForty/mobile-sdk-react-native/issues/14)
+
 ## 1.9.0 (2026-10-22)
 
 * feat(attribution): send the Google Play install referrer with the install (#12) ([d471e53](https://github.com/LinkForty/mobile-sdk-react-native/commit/d471e53)), closes [#12](https://github.com/LinkForty/mobile-sdk-react-native/issues/12)
