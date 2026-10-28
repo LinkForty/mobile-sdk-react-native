@@ -8,17 +8,25 @@
 export interface LinkFortyConfig {
   /** Base URL of your LinkForty instance (e.g., 'https://go.yourdomain.com') */
   baseUrl: string;
-  /** Optional API key for Cloud authentication */
+  /**
+   * Optional API key, only needed for `createLink()`. It is a secret: don't
+   * ship one in your app unless you create links from it. Never logged.
+   */
   apiKey?: string;
   /**
-   * Public workspace token (LinkForty Cloud only). Recommended — required
-   * for organic installs (App Store discovery, social mentions, etc.) to
-   * be attributed to your workspace. Find it in the dashboard under
-   * Workspace Settings → App Token. Safe to ship in your app bundle.
+   * Public workspace token, used by the hosted service. Recommended there —
+   * required for organic installs (App Store discovery, social mentions, etc.)
+   * to be attributed to your workspace. Find it in the dashboard under
+   * Settings → App Configuration. Safe to ship in your app bundle.
    * Format: `at_<32 hex chars>`.
    */
   appToken?: string;
-  /** Enable debug logging */
+  /**
+   * Log what the SDK does (URLs, resolved link data, requests) to the console.
+   * Off by default: without it the SDK logs only failures (a failed install
+   * report or event, init() called twice, an event dropped for lack of an
+   * install ID), never link or device data.
+   */
   debug?: boolean;
   /** Custom attribution window in days (default: 7) */
   attributionWindow?: number;
@@ -71,8 +79,12 @@ export interface AutoTrackNavigationOptions {
 export interface NavigationRouteLike {
   /** The active route/screen name (used as the screen-view name) */
   name: string;
-  /** Route params, if any (sanitized before being attached to the event) */
-  params?: Record<string, unknown>;
+  /**
+   * Route params, if any (sanitized before being attached to the event).
+   * Typed as `object` to match React Navigation, whose routes carry
+   * `Readonly<object | undefined>` params; the SDK reads them defensively.
+   */
+  params?: Readonly<object | undefined>;
 }
 
 /**

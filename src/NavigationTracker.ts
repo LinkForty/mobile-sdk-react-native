@@ -12,8 +12,6 @@
  * that doesn't use react-navigation) results in a no-op, never a crash. The SDK
  * has no compile-time dependency on `@react-navigation/native` — the ref is
  * typed structurally (see NavigationContainerRefLike).
- *
- * See `.brandon/sit-237-auto-nav-tracking/plan.md` Phase A.
  */
 
 import type { NavigationContainerRefLike, NavigationRouteLike } from './types';
@@ -46,19 +44,20 @@ const MAX_PARAM_STRING_LENGTH = 256;
  * keys: only the allow-listed keys are considered, and only primitive values
  * (string / number / boolean) survive — strings are capped and nested
  * objects/arrays/functions are dropped. Returns undefined when nothing survives
- * (including when the allow-list is empty/omitted).
+ * (including when the allow-list is empty/omitted). Accepts any value, since
+ * route params are typed loosely by React Navigation and set by the app.
  */
 export function sanitizeScreenParams(
-  params: Record<string, unknown> | undefined,
+  params: Readonly<object | undefined> | null | undefined,
   allowList: string[] | undefined,
 ): Record<string, string | number | boolean> | undefined {
-  if (!params || typeof params !== 'object' || !allowList || allowList.length === 0) {
+  if (!params || typeof params !== 'object' || Array.isArray(params) || !allowList || allowList.length === 0) {
     return undefined;
   }
 
   const allowed = new Set(allowList);
   const out: Record<string, string | number | boolean> = {};
-  for (const [key, value] of Object.entries(params)) {
+  for (const [key, value] of Object.entries(params as Record<string, unknown>)) {
     if (!allowed.has(key)) {
       continue;
     }

@@ -6,6 +6,9 @@
  * resolves them via the server API to retrieve the full deep link data
  * (custom parameters, UTM params, etc.) that would normally be appended
  * during the redirect.
+ *
+ * Logs only with `debug` on: URLs and link data never reach the console
+ * otherwise.
  */
 
 import { Linking } from 'react-native';
@@ -19,6 +22,21 @@ export class DeepLinkHandler {
   private baseUrl: string | null = null;
   private resolveFn: ResolveFunction | null = null;
   private linkDomains: LinkDomains | null = null;
+  private readonly debug: boolean;
+  /** The `Linking` 'url' subscription, added once and removed by cleanup() */
+  private subscription: { remove: () => void } | null = null;
+
+  /**
+   * @param options.debug - Log each link handled, its resolution and fallbacks
+   *   (default: false, logs nothing)
+   */
+  constructor(options: { debug?: boolean } = {}) {
+    this.debug = options.debug ?? false;
+  }
+
+  private log(...args: unknown[]): void {
+    if (this.debug) console.log('[LinkForty]', ...args);
+  }
 
   /**
    * Parse a URL string manually.
@@ -57,8 +75,7 @@ export class DeepLinkHandler {
       }
 
       return { pathname, searchParams };
-    } catch (error) {
-      console.error('[LinkForty] Failed to parse URL string:', error);
+    } catch {
       return null;
     }
   }
@@ -73,7 +90,8 @@ export class DeepLinkHandler {
   }
 
   /**
-   * Initialize deep link listener
+   * Initialize deep link listener. Calling it again replaces the callback
+   * (the newest one receives links) without adding a second listener.
    * @param baseUrl - LinkForty instance base URL for detecting LinkForty URLs
    * @param callback - Callback invoked with parsed/resolved deep link data
    * @param resolveFn - Optional function to resolve LinkForty URLs via the server API
@@ -90,27 +108,31 @@ export class DeepLinkHandler {
     this.resolveFn = resolveFn || null;
     this.linkDomains = linkDomains || null;
 
-    console.log('[LinkForty] DeepLinkHandler.initialize: baseUrl=', baseUrl, 'hasResolveFn=', !!resolveFn);
+    this.log('DeepLinkHandler.initialize: baseUrl=', baseUrl, 'hasResolveFn=', !!resolveFn);
 
-    // Listen for deep links when app is already open
-    Linking.addEventListener('url', this.handleDeepLink);
+    // Listen for deep links when app is already open (one listener per handler)
+    if (!this.subscription) {
+      this.subscription = Linking.addEventListener('url', this.handleDeepLink);
+    }
 
     // Check if app was opened via deep link
     Linking.getInitialURL().then((url) => {
-      console.log('[LinkForty] getInitialURL result:', url);
+      this.log('getInitialURL result:', url);
       if (url) {
         this.handleDeepLink({ url });
       } else {
-        console.warn('[LinkForty] getInitialURL returned null — app may not have been opened via deep link, or Android consumed the Intent');
+        this.log('getInitialURL returned null — app may not have been opened via deep link, or Android consumed the Intent');
       }
     });
   }
 
   /**
-   * Clean up listeners
+   * Remove this handler's listener. Other 'url' listeners (the app's own)
+   * are left in place.
    */
   cleanup(): void {
-    Linking.removeAllListeners('url');
+    this.subscription?.remove();
+    this.subscription = null;
     this.callback = null;
   }
 
@@ -120,38 +142,40 @@ export class DeepLinkHandler {
    * Falls back to local URL parsing on failure.
    */
   private handleDeepLink = async ({ url }: { url: string }): Promise<void> => {
-    console.log('[LinkForty] handleDeepLink called with url:', url);
+    this.log('handleDeepLink called with url:', url);
 
     if (!this.callback || !url) {
-      console.warn('[LinkForty] handleDeepLink early return: callback=', !!this.callback, 'url=', url);
+      this.log('handleDeepLink early return: callback=', !!this.callback, 'url=', url);
       return;
     }
 
     // Parse a LinkForty URL locally first, for the fallback
     const isLinkFortyUrl = await this.isLinkFortyUrl(url);
     const localData = isLinkFortyUrl ? this.parseLinkURL(url) : null;
-    console.log('[LinkForty] localData parsed:', JSON.stringify(localData));
+    this.log('localData parsed:', JSON.stringify(localData));
 
     // If this is a LinkForty URL and we have a resolver, try the server
     if (localData && this.resolveFn) {
       try {
-        console.log('[LinkForty] Resolving URL via server...');
+        this.log('Resolving URL via server...');
         const resolvedData = await this.resolveURL(url);
-        console.log('[LinkForty] Resolve result:', JSON.stringify(resolvedData));
+        this.log('Resolve result:', JSON.stringify(resolvedData));
         if (resolvedData) {
           this.callback(url, mergeUrlParameters(resolvedData, localData?.customParameters));
           return;
         }
-        console.warn('[LinkForty] Resolve returned null, falling back to local parse');
+        this.log('Resolve returned null, falling back to local parse');
       } catch (error) {
-        console.warn('[LinkForty] Failed to resolve URL from server, falling back to local parse:', error);
+        this.log('Failed to resolve URL from server, falling back to local parse:', error);
       }
     } else {
-      console.warn('[LinkForty] Skipping server resolve: localData=', !!localData, 'resolveFn=', !!this.resolveFn, 'isLinkFortyUrl=', isLinkFortyUrl);
+      this.log('Skipping server resolve: localData=', !!localData, 'resolveFn=', !!this.resolveFn, 'isLinkFortyUrl=', isLinkFortyUrl);
     }
 
     // Fallback to locally-parsed data (no customParameters from server)
-    console.warn('[LinkForty] Using local fallback — customParameters will be empty for App Link URLs');
+    if (localData) {
+      this.log('Using local fallback — customParameters will be empty for App Link URLs');
+    }
     this.callback(url, localData);
   };
 
@@ -212,7 +236,7 @@ export class DeepLinkHandler {
       resolvePath += `?${DeepLinkHandler.buildQueryString(fpParams)}`;
     } catch (error) {
       // If fingerprint collection fails, still resolve without it
-      console.warn('[LinkForty] Fingerprint collection failed, resolving without fingerprint:', error);
+      this.log('Fingerprint collection failed, resolving without fingerprint:', error);
     }
 
     return this.resolveFn(resolvePath);
@@ -264,7 +288,7 @@ export class DeepLinkHandler {
         customParameters: Object.keys(customParameters).length > 0 ? customParameters : undefined,
       };
     } catch (error) {
-      console.error('Failed to parse deep link URL:', error);
+      this.log('Failed to parse deep link URL:', error);
       return null;
     }
   }

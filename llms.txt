@@ -1,6 +1,6 @@
 # @linkforty/mobile-sdk-react-native
 
-> React Native SDK for LinkForty — an open-source mobile attribution and deep link management platform. This SDK handles deep linking, deferred deep linking (install attribution), in-app event tracking, and link creation. Works with LinkForty Cloud (linkforty.com) or self-hosted Core instances.
+> React Native SDK for LinkForty — an open-source mobile attribution and deep link management platform. This SDK handles deep linking, deferred deep linking (install attribution), in-app event tracking, and link creation. Works with the hosted service (linkforty.com) or self-hosted Core instances.
 
 ## Installation
 
@@ -8,14 +8,14 @@
 npm install @linkforty/mobile-sdk-react-native
 ```
 
-Also install the SDK's two native dependencies in the app itself, at the SDK's major versions. React Native autolinking only links native modules listed in the app's own package.json, and AsyncStorage 3.x registers a different native module name than the 2.x the SDK uses:
+Also install the SDK's two native dependencies in the app itself. They are peer dependencies, and React Native autolinking only links native modules listed in the app's own package.json:
 
 ```bash
-npm install @react-native-async-storage/async-storage@^2.2.0 react-native-device-info@^15.0.0
+npm install @react-native-async-storage/async-storage react-native-device-info
 ```
 
-- `@react-native-async-storage/async-storage` — persists install ID and attribution data
-- `react-native-device-info` — collects device fingerprint for attribution, and the Google Play install referrer on Android
+- `@react-native-async-storage/async-storage` (^2.2.0 or ^3.0.0) — persists install ID and attribution data. With 3.x the SDK uses its default (legacy) storage, which keeps 2.x data.
+- `react-native-device-info` (^15.0.0) — collects device fingerprint for attribution, and the Google Play install referrer on Android
 
 Requires React Native >= 0.65 (AsyncStorage 2.x's floor), React >= 17.
 
@@ -41,7 +41,10 @@ interface LinkFortyConfig {
    * Safe to ship in your app bundle (workspace identifier only, not auth).
    */
   appToken?: string;
-  /** Enable debug logging (default: false) */
+  /**
+   * Log what the SDK does, including link URLs and link data (default: false).
+   * The API key is never logged. Without debug, only failures are logged.
+   */
   debug?: boolean;
   /** Attribution window in days (default: 7) */
   attributionWindow?: number;
@@ -146,7 +149,7 @@ await LinkFortySDK.init({
 
 ### onDeepLink(callback: DeepLinkCallback): void
 
-Register a callback for direct deep links — fires when user taps a LinkForty link and the app is already installed. The SDK resolves the link server-side to get enriched data.
+Register a callback for direct deep links — fires when user taps a LinkForty link and the app is already installed. The SDK resolves the link server-side to get enriched data. Calling it again replaces the callback (only the newest is called, once per link).
 
 ```typescript
 LinkFortySDK.onDeepLink((url, data) => {
@@ -161,7 +164,7 @@ LinkFortySDK.onDeepLink((url, data) => {
 
 ### onDeferredDeepLink(callback: DeferredDeepLinkCallback): void
 
-Register a callback for deferred deep links — fires on first app launch if the install was attributed to a link click. This enables routing users to specific content after they install.
+Register a callback for deferred deep links — fires once, on the launch that reports the install (the first launch, or a later one if that report failed): with the link's data if the install was attributed to a link click, or null for an organic install. A launch whose report fails also calls it with null. This enables routing users to specific content after they install.
 
 ```typescript
 LinkFortySDK.onDeferredDeepLink((data) => {
@@ -177,7 +180,7 @@ LinkFortySDK.onDeferredDeepLink((data) => {
 
 ### trackEvent(name: string, properties?: Record\<string, any\>): Promise\<void\>
 
-Track in-app events for attribution and conversion analysis. Needs the install ID from the first-launch install report; without it the call logs a warning and sends nothing. There is no offline queue: a failed send is logged and dropped, not retried.
+Track in-app events for attribution and conversion analysis. Needs the install ID from the install report (sent on first launch, and again on each later launch until the server accepts it); without it the call logs a warning and sends nothing. Devices whose first-launch report failed on SDK 1.9.0 or earlier (no install ID) report the install once after upgrading; it appears as an install dated at the upgrade, usually organic, and only restores the install ID: it does not call onDeferredDeepLink, save link data for getInstallData(), or credit a link for later events. There is no offline queue: a failed send is logged and dropped, not retried.
 
 ```typescript
 await LinkFortySDK.trackEvent('purchase', {
@@ -228,11 +231,11 @@ Retrieve cached attribution data from the initial deferred deep link.
 
 ### getInstallId(): Promise\<string | null\>
 
-Get the unique install ID assigned on first launch.
+Get the unique install ID assigned when the install is reported (first launch, or a later launch if that report failed); null until then.
 
 ### clearData(): Promise\<void\>
 
-Clear all cached SDK data (install ID, attribution, first-launch flag). The next launch reports a new install, so use it for testing, not on user logout.
+Clear all cached SDK data (install ID, install link data, install-reported flag, attribution context, saved link hosts). The next launch reports a new install, so use it for testing, not on user logout.
 
 ## iOS Platform Setup
 

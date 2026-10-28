@@ -18,8 +18,6 @@
  * still attributes to the last link (subject to the server-side conversion window).
  * The session is intentionally in-memory: a new JS context (cold start) is a new
  * session.
- *
- * See `.brandon/sit-237-auto-nav-tracking/plan.md` §0.2 / Phase D for the model.
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';

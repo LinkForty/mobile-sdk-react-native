@@ -64,6 +64,18 @@ describe('sanitizeScreenParams', () => {
     expect(sanitizeScreenParams({ nested: { a: 1 } }, ['nested'])).toBeUndefined();
     expect(sanitizeScreenParams(undefined, ['x'])).toBeUndefined();
   });
+
+  it('reads params typed as React Navigation types them, and ignores non-objects', () => {
+    // React Navigation 7 types route params as Readonly<object | undefined>
+    const params: Readonly<object | undefined> = Object.freeze({ productId: 'abc' });
+    expect(sanitizeScreenParams(params, ['productId'])).toEqual({ productId: 'abc' });
+
+    const loose = (value: unknown) => value as Readonly<object | undefined>;
+    expect(sanitizeScreenParams(loose(['a', 'b']), ['0'])).toBeUndefined();
+    expect(sanitizeScreenParams(loose('productId'), ['productId'])).toBeUndefined();
+    expect(sanitizeScreenParams(loose(42), ['productId'])).toBeUndefined();
+    expect(sanitizeScreenParams(null, ['productId'])).toBeUndefined();
+  });
 });
 
 describe('NavigationTracker', () => {

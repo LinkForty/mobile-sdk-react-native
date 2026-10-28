@@ -96,6 +96,20 @@ export class LinkDomains {
     }
   }
 
+  /**
+   * Forgets the saved hosts (see `LinkFortySDK.clearData`) and learns them
+   * again, as on a first launch.
+   */
+  async reset(): Promise<void> {
+    await this.update(null);
+    this.start();
+  }
+
+  /** Removes the saved hosts without an instance (before `init()`). */
+  static async clearSaved(): Promise<void> {
+    await AsyncStorage.removeItem(STORAGE_KEY);
+  }
+
   private async load(): Promise<void> {
     try {
       const saved = await AsyncStorage.getItem(STORAGE_KEY);

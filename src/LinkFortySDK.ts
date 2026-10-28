@@ -24,7 +24,19 @@ import type {
 const STORAGE_KEYS = {
   INSTALL_ID: '@linkforty:install_id',
   INSTALL_DATA: '@linkforty:install_data',
-  FIRST_LAUNCH: '@linkforty:first_launch',
+  /**
+   * Set once the server has accepted the install report. Versions up to
+   * 1.9.0 set it before sending the report, so on its own it doesn't prove
+   * the report was accepted; it is still written so a downgraded app doesn't
+   * report again.
+   */
+  INSTALL_REPORTED: '@linkforty:first_launch',
+  /**
+   * Set when the server accepts an install report (a 2xx response), even one
+   * without an install ID, so such a response can't trigger a report on every
+   * launch.
+   */
+  INSTALL_REPORT_ACCEPTED: '@linkforty:install_report_accepted',
 };
 
 export class LinkFortySDK {
@@ -54,7 +66,7 @@ export class LinkFortySDK {
     this.config = config;
 
     if (config.debug) {
-      console.log('[LinkForty] Initializing SDK with config:', config);
+      console.log('[LinkForty] Initializing SDK with config:', redactConfig(config));
     }
 
     // Recreate the attribution context so it honors the debug flag, then restore
@@ -63,15 +75,15 @@ export class LinkFortySDK {
     this.attribution = new AttributionContext({ debug: config.debug });
     await this.attribution.load();
 
-    // Check if this is first launch
-    const isFirstLaunch = await this.isFirstLaunch();
-
-    if (isFirstLaunch) {
-      // Report install and get deferred deep link
-      await this.reportInstall();
-    } else {
+    if (await this.isInstallReported()) {
       // Load cached install data
       await this.loadInstallData();
+    } else {
+      // First launch, or an earlier report failed: report the install and get
+      // the deferred deep link. With the first-launch flag already set, this
+      // is a device recovering from a report that failed on 1.9.0 or earlier.
+      const recovery = (await AsyncStorage.getItem(STORAGE_KEYS.INSTALL_REPORTED)) !== null;
+      await this.reportInstall({ recovery });
     }
 
     // Learn the workspace's link hosts in the background
@@ -84,7 +96,7 @@ export class LinkFortySDK {
     this.linkDomains.start();
 
     // Initialize deep link handler for direct deep links
-    this.deepLinkHandler = new DeepLinkHandler();
+    this.deepLinkHandler = new DeepLinkHandler({ debug: config.debug });
 
     // Start auto screen-view tracking if requested. Screen views flow through
     // trackEvent, so they inherit the last-click attribution stamp. Guarded so a
@@ -188,7 +200,7 @@ export class LinkFortySDK {
     }
 
     if (!this.deepLinkHandler) {
-      this.deepLinkHandler = new DeepLinkHandler();
+      this.deepLinkHandler = new DeepLinkHandler({ debug: this.config.debug });
     }
 
     // Create a resolver that wraps the private apiRequest method
@@ -247,7 +259,7 @@ export class LinkFortySDK {
       eventData: properties || {},
       timestamp: new Date().toISOString(),
       ...this.attribution.getStamp(),
-      // SDK identity for health/version diagnostics (SIT-235)
+      // SDK identity, so the server can tell which SDK and version sent it
       sdkName: SDK_NAME,
       sdkVersion: SDK_VERSION,
     };
@@ -410,16 +422,31 @@ export class LinkFortySDK {
   }
 
   /**
-   * Clear all cached data (for testing)
+   * Clear all cached data (for testing): the install ID and link data, the
+   * install-reported flag, the attribution context and the saved link hosts.
+   * The next launch reports a new install.
    */
   async clearData(): Promise<void> {
-    await AsyncStorage.multiRemove([
-      STORAGE_KEYS.INSTALL_ID,
-      STORAGE_KEYS.INSTALL_DATA,
-      STORAGE_KEYS.FIRST_LAUNCH,
-    ]);
+    // removeItem (not multiRemove) works with AsyncStorage 2.x and 3.x alike
+    await Promise.all(
+      [
+        STORAGE_KEYS.INSTALL_ID,
+        STORAGE_KEYS.INSTALL_DATA,
+        STORAGE_KEYS.INSTALL_REPORTED,
+        STORAGE_KEYS.INSTALL_REPORT_ACCEPTED,
+      ].map(
+        (key) => AsyncStorage.removeItem(key),
+      ),
+    );
 
     await this.attribution.clear();
+
+    // Forget the saved link hosts, then learn them again
+    if (this.linkDomains) {
+      await this.linkDomains.reset();
+    } else {
+      await LinkDomains.clearSaved();
+    }
 
     if (this.navigationTracker) {
       this.navigationTracker.stop();
@@ -435,23 +462,37 @@ export class LinkFortySDK {
   }
 
   /**
-   * Check if this is the first app launch
+   * Whether the server has accepted this install's report (on this or an
+   * earlier launch): an install ID is stored, or a report got a 2xx response.
+   *
+   * Until then every launch reports the install, so a failed report is
+   * retried. This also recovers devices where a version up to 1.9.0 set the
+   * first-launch flag but its report failed (flag set, no install ID): they
+   * report once after upgrading. A device with an install ID never reports
+   * again.
    */
-  private async isFirstLaunch(): Promise<boolean> {
-    const firstLaunchFlag = await AsyncStorage.getItem(STORAGE_KEYS.FIRST_LAUNCH);
-
-    if (!firstLaunchFlag) {
-      await AsyncStorage.setItem(STORAGE_KEYS.FIRST_LAUNCH, 'true');
-      return true;
-    }
-
-    return false;
+  private async isInstallReported(): Promise<boolean> {
+    const [installId, accepted] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEYS.INSTALL_ID),
+      AsyncStorage.getItem(STORAGE_KEYS.INSTALL_REPORT_ACCEPTED),
+    ]);
+    return installId !== null || accepted !== null;
   }
 
   /**
-   * Report app installation to LinkForty backend
+   * Report app installation to LinkForty backend. Marks the install reported
+   * only once the server accepts it; on failure the next launch reports again.
+   *
+   * A recovery report (a device whose report failed on 1.9.0 or earlier) only
+   * restores the install ID: it doesn't call the deferred deep link callback
+   * (the user has been using the app, so routing them like a fresh install
+   * would be wrong), save link data or set the link credited for events.
    */
-  private async reportInstall(): Promise<void> {
+  private async reportInstall({ recovery = false }: { recovery?: boolean } = {}): Promise<void> {
+    const deliver = (data: DeepLinkData | null) => {
+      if (!recovery) this.deferredDeepLink.deliver(data);
+    };
+
     if (!this.config) {
       return;
     }
@@ -492,13 +533,13 @@ export class LinkFortySDK {
             platformVersion: fingerprint.osVersion,
             deviceId: undefined, // Optional: Can add IDFA/GAID if available
             attributionWindowHours,
-            // SDK identity for health/version diagnostics (SIT-235)
+            // SDK identity, so the server can tell which SDK and version sent it
             sdkName: SDK_NAME,
             sdkVersion: SDK_VERSION,
-            // Public workspace token; lets Cloud scope organic installs
+            // Public workspace token; lets the server scope organic installs
             // (those with no click match) to the right workspace. Omitted
-            // entirely when not configured — server treats absence as
-            // "scope organic installs to no workspace" (current behavior).
+            // entirely when not configured; the server then scopes organic
+            // installs to no workspace.
             appToken: this.config.appToken,
             // Google Play install referrer (Android); omitted when there is none
             installReferrer: installReferrer ?? undefined,
@@ -516,6 +557,21 @@ export class LinkFortySDK {
         await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_ID, response.installId);
       }
 
+      // The server accepted the report: don't report this install again
+      await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_REPORT_ACCEPTED, 'true');
+      await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_REPORTED, 'true');
+
+      // A recovery report only restores the install ID. Its match is a
+      // fingerprint match made now, not the click that led to the install, so
+      // it is neither saved as install data nor credited for later events (a
+      // link tap that opens the app sets that through the deep link path).
+      if (recovery) {
+        if (this.config.debug) {
+          console.log('[LinkForty] Install ID restored; link data from this report is not used');
+        }
+        return;
+      }
+
       // If attributed, store deep link data
       const deepLinkData = deferredDeepLinkFromInstall(response);
       if (deepLinkData) {
@@ -531,7 +587,7 @@ export class LinkFortySDK {
           await this.attribution.recordDeepLinkOpen(deepLinkData.linkId);
         }
 
-        this.deferredDeepLink.deliver(deepLinkData);
+        deliver(deepLinkData);
 
         if (this.config.debug) {
           console.log('[LinkForty] Install attributed with confidence:', response.confidenceScore);
@@ -544,13 +600,13 @@ export class LinkFortySDK {
         }
 
         // null indicates an organic install
-        this.deferredDeepLink.deliver(null);
+        deliver(null);
       }
     } catch (error) {
-      console.error('[LinkForty] Failed to report install:', error);
+      console.error('[LinkForty] Failed to report install (retried on the next launch):', error);
 
       // null on error
-      this.deferredDeepLink.deliver(null);
+      deliver(null);
     }
   }
 
@@ -573,7 +629,7 @@ export class LinkFortySDK {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      // SDK identity header (SIT-235) — name/version on every SDK request.
+      // SDK identity header: name/version on every SDK request.
       'X-LinkForty-SDK': `${SDK_NAME}/${SDK_VERSION}`,
     };
 
@@ -604,6 +660,16 @@ export class LinkFortySDK {
 
     return response.json();
   }
+}
+
+/** The config as logged with `debug`: the API key, a secret, is redacted. */
+function redactConfig(config: LinkFortyConfig): Record<string, unknown> {
+  const { apiKey, navigationRef, ...rest } = config;
+  return {
+    ...rest,
+    ...(apiKey !== undefined && { apiKey: '[redacted]' }),
+    ...(navigationRef !== undefined && { navigationRef: '[set]' }),
+  };
 }
 
 // Export singleton instance
