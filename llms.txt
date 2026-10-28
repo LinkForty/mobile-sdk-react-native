@@ -180,7 +180,7 @@ LinkFortySDK.onDeferredDeepLink((data) => {
 
 ### trackEvent(name: string, properties?: Record\<string, any\>): Promise\<void\>
 
-Track in-app events for attribution and conversion analysis. Needs the install ID from the install report (sent on first launch, and again on each later launch until the server accepts it); without it the call logs a warning and sends nothing. Devices whose first-launch report failed on SDK 1.9.0 or earlier (no install ID) report the install once after upgrading; it appears as an install dated at the upgrade, usually organic, and does not call onDeferredDeepLink. There is no offline queue: a failed send is logged and dropped, not retried.
+Track in-app events for attribution and conversion analysis. Needs the install ID from the install report (sent on first launch, and again on each later launch until the server accepts it); without it the call logs a warning and sends nothing. Devices whose first-launch report failed on SDK 1.9.0 or earlier (no install ID) report the install once after upgrading; it appears as an install dated at the upgrade, usually organic, and only restores the install ID: it does not call onDeferredDeepLink, save link data for getInstallData(), or credit a link for later events. There is no offline queue: a failed send is logged and dropped, not retried.
 
 ```typescript
 await LinkFortySDK.trackEvent('purchase', {

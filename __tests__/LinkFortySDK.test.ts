@@ -232,6 +232,42 @@ describe('LinkFortySDK recovery of a device whose earlier report failed', () => 
     }
   });
 
+  it('only restores the install ID: no install data, no credited link', async () => {
+    stuckDevice();
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(200, {
+        ...organicInstall,
+        attributed: true,
+        confidenceScore: 90,
+        matchedFactors: ['ip'],
+        deepLinkData: { shortCode: 'abc', linkId: 'link-1' },
+      }),
+    );
+    const sdk = new LinkFortySDK();
+    await sdk.init(config);
+    await sdk.trackEvent('signup');
+
+    expect(await sdk.getInstallId()).toBe(INSTALL_ID);
+    expect(await sdk.getInstallData()).toBeNull();
+    expect(store['@linkforty:install_data']).toBeUndefined();
+    expect(sdk.getActiveAttribution()).toBeNull();
+    const [[, init]] = calls(fetchMock, '/api/sdk/v1/event');
+    expect(JSON.parse(String(init?.body)).attributedLinkId).toBeUndefined();
+  });
+
+  it('keeps the link credited by an earlier link tap', async () => {
+    stuckDevice();
+    const tapped = { linkId: 'tapped-link', openedAt: '2026-10-01T00:00:00.000Z' };
+    store['@linkforty:attribution'] = JSON.stringify(tapped);
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(200, { ...organicInstall, attributed: true, deepLinkData: { shortCode: 'abc', linkId: 'link-1' } }),
+    );
+    const sdk = new LinkFortySDK();
+    await sdk.init(config);
+
+    expect(sdk.getActiveAttribution()).toEqual(tapped);
+  });
+
   it('never reports again on a device that has an install ID', async () => {
     store['@linkforty:first_launch'] = 'true';
     store['@linkforty:install_id'] = INSTALL_ID;

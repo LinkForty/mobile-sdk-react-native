@@ -483,9 +483,10 @@ export class LinkFortySDK {
    * Report app installation to LinkForty backend. Marks the install reported
    * only once the server accepts it; on failure the next launch reports again.
    *
-   * A recovery report (a device whose report failed on 1.9.0 or earlier) does
-   * not call the deferred deep link callback: the user has been using the app,
-   * so routing them like a fresh install would be wrong.
+   * A recovery report (a device whose report failed on 1.9.0 or earlier) only
+   * restores the install ID: it doesn't call the deferred deep link callback
+   * (the user has been using the app, so routing them like a fresh install
+   * would be wrong), save link data or set the link credited for events.
    */
   private async reportInstall({ recovery = false }: { recovery?: boolean } = {}): Promise<void> {
     const deliver = (data: DeepLinkData | null) => {
@@ -559,6 +560,17 @@ export class LinkFortySDK {
       // The server accepted the report: don't report this install again
       await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_REPORT_ACCEPTED, 'true');
       await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_REPORTED, 'true');
+
+      // A recovery report only restores the install ID. Its match is a
+      // fingerprint match made now, not the click that led to the install, so
+      // it is neither saved as install data nor credited for later events (a
+      // link tap that opens the app sets that through the deep link path).
+      if (recovery) {
+        if (this.config.debug) {
+          console.log('[LinkForty] Install ID restored; link data from this report is not used');
+        }
+        return;
+      }
 
       // If attributed, store deep link data
       const deepLinkData = deferredDeepLinkFromInstall(response);
