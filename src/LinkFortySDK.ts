@@ -80,8 +80,10 @@ export class LinkFortySDK {
       await this.loadInstallData();
     } else {
       // First launch, or an earlier report failed: report the install and get
-      // the deferred deep link
-      await this.reportInstall();
+      // the deferred deep link. With the first-launch flag already set, this
+      // is a device recovering from a report that failed on 1.9.0 or earlier.
+      const recovery = (await AsyncStorage.getItem(STORAGE_KEYS.INSTALL_REPORTED)) !== null;
+      await this.reportInstall({ recovery });
     }
 
     // Learn the workspace's link hosts in the background
@@ -480,8 +482,16 @@ export class LinkFortySDK {
   /**
    * Report app installation to LinkForty backend. Marks the install reported
    * only once the server accepts it; on failure the next launch reports again.
+   *
+   * A recovery report (a device whose report failed on 1.9.0 or earlier) does
+   * not call the deferred deep link callback: the user has been using the app,
+   * so routing them like a fresh install would be wrong.
    */
-  private async reportInstall(): Promise<void> {
+  private async reportInstall({ recovery = false }: { recovery?: boolean } = {}): Promise<void> {
+    const deliver = (data: DeepLinkData | null) => {
+      if (!recovery) this.deferredDeepLink.deliver(data);
+    };
+
     if (!this.config) {
       return;
     }
@@ -565,7 +575,7 @@ export class LinkFortySDK {
           await this.attribution.recordDeepLinkOpen(deepLinkData.linkId);
         }
 
-        this.deferredDeepLink.deliver(deepLinkData);
+        deliver(deepLinkData);
 
         if (this.config.debug) {
           console.log('[LinkForty] Install attributed with confidence:', response.confidenceScore);
@@ -578,13 +588,13 @@ export class LinkFortySDK {
         }
 
         // null indicates an organic install
-        this.deferredDeepLink.deliver(null);
+        deliver(null);
       }
     } catch (error) {
       console.error('[LinkForty] Failed to report install (retried on the next launch):', error);
 
       // null on error
-      this.deferredDeepLink.deliver(null);
+      deliver(null);
     }
   }
 

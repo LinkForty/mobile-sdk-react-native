@@ -204,6 +204,34 @@ describe('LinkFortySDK recovery of a device whose earlier report failed', () => 
     expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(1);
   });
 
+  it('does not call the deferred deep link callback on a recovery report', async () => {
+    const attributed = {
+      ...organicInstall,
+      attributed: true,
+      confidenceScore: 90,
+      matchedFactors: ['ip'],
+      deepLinkData: { shortCode: 'abc', linkId: 'link-1' },
+    };
+
+    for (const respond of [
+      async () => jsonResponse(200, attributed),
+      async () => jsonResponse(200, organicInstall),
+      networkDown,
+    ]) {
+      for (const key of Object.keys(store)) delete store[key];
+      stuckDevice();
+      fetchMock.mockImplementation(respond);
+      const sdk = new LinkFortySDK();
+      const callback = vi.fn();
+      sdk.onDeferredDeepLink(callback);
+      await sdk.init(config);
+
+      expect(calls(fetchMock, '/api/sdk/v1/install').length).toBeGreaterThan(0);
+      expect(callback).not.toHaveBeenCalled();
+      fetchMock.mockClear();
+    }
+  });
+
   it('never reports again on a device that has an install ID', async () => {
     store['@linkforty:first_launch'] = 'true';
     store['@linkforty:install_id'] = INSTALL_ID;
