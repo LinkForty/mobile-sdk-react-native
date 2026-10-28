@@ -23,6 +23,8 @@ export class DeepLinkHandler {
   private resolveFn: ResolveFunction | null = null;
   private linkDomains: LinkDomains | null = null;
   private readonly debug: boolean;
+  /** The `Linking` 'url' subscription, added once and removed by cleanup() */
+  private subscription: { remove: () => void } | null = null;
 
   /**
    * @param options.debug - Log each link handled, its resolution and fallbacks
@@ -88,7 +90,8 @@ export class DeepLinkHandler {
   }
 
   /**
-   * Initialize deep link listener
+   * Initialize deep link listener. Calling it again replaces the callback
+   * (the newest one receives links) without adding a second listener.
    * @param baseUrl - LinkForty instance base URL for detecting LinkForty URLs
    * @param callback - Callback invoked with parsed/resolved deep link data
    * @param resolveFn - Optional function to resolve LinkForty URLs via the server API
@@ -107,8 +110,10 @@ export class DeepLinkHandler {
 
     this.log('DeepLinkHandler.initialize: baseUrl=', baseUrl, 'hasResolveFn=', !!resolveFn);
 
-    // Listen for deep links when app is already open
-    Linking.addEventListener('url', this.handleDeepLink);
+    // Listen for deep links when app is already open (one listener per handler)
+    if (!this.subscription) {
+      this.subscription = Linking.addEventListener('url', this.handleDeepLink);
+    }
 
     // Check if app was opened via deep link
     Linking.getInitialURL().then((url) => {
@@ -122,10 +127,12 @@ export class DeepLinkHandler {
   }
 
   /**
-   * Clean up listeners
+   * Remove this handler's listener. Other 'url' listeners (the app's own)
+   * are left in place.
    */
   cleanup(): void {
-    Linking.removeAllListeners('url');
+    this.subscription?.remove();
+    this.subscription = null;
     this.callback = null;
   }
 

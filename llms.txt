@@ -149,7 +149,7 @@ await LinkFortySDK.init({
 
 ### onDeepLink(callback: DeepLinkCallback): void
 
-Register a callback for direct deep links — fires when user taps a LinkForty link and the app is already installed. The SDK resolves the link server-side to get enriched data.
+Register a callback for direct deep links — fires when user taps a LinkForty link and the app is already installed. The SDK resolves the link server-side to get enriched data. Calling it again replaces the callback (only the newest is called, once per link).
 
 ```typescript
 LinkFortySDK.onDeepLink((url, data) => {

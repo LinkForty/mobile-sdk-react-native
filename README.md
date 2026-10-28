@@ -204,7 +204,7 @@ await LinkForty.init({
 
 ### `onDeepLink(callback)`
 
-Listen for direct deep links. Called when the app is opened via a Universal Link (iOS) or App Link (Android).
+Listen for direct deep links. Called when the app is opened via a Universal Link (iOS) or App Link (Android). Calling `onDeepLink()` again replaces the callback: only the newest one is called, once per link.
 
 When the URL is a LinkForty link, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing. Any other URL reaches the callback with `data` set to `null`.
 
