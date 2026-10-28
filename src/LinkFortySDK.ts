@@ -25,12 +25,18 @@ const STORAGE_KEYS = {
   INSTALL_ID: '@linkforty:install_id',
   INSTALL_DATA: '@linkforty:install_data',
   /**
-   * Set once the server has accepted the install report. Until then every
-   * launch reports the install again, so a report that fails (no connection,
-   * server error) is retried on the next launch. The key keeps its original
-   * name so installs reported by earlier versions are not reported again.
+   * Set once the server has accepted the install report. Versions up to
+   * 1.9.0 set it before sending the report, so on its own it doesn't prove
+   * the report was accepted; it is still written so a downgraded app doesn't
+   * report again.
    */
   INSTALL_REPORTED: '@linkforty:first_launch',
+  /**
+   * Set when the server accepts an install report (a 2xx response), even one
+   * without an install ID, so such a response can't trigger a report on every
+   * launch.
+   */
+  INSTALL_REPORT_ACCEPTED: '@linkforty:install_report_accepted',
 };
 
 export class LinkFortySDK {
@@ -421,7 +427,12 @@ export class LinkFortySDK {
   async clearData(): Promise<void> {
     // removeItem (not multiRemove) works with AsyncStorage 2.x and 3.x alike
     await Promise.all(
-      [STORAGE_KEYS.INSTALL_ID, STORAGE_KEYS.INSTALL_DATA, STORAGE_KEYS.INSTALL_REPORTED].map(
+      [
+        STORAGE_KEYS.INSTALL_ID,
+        STORAGE_KEYS.INSTALL_DATA,
+        STORAGE_KEYS.INSTALL_REPORTED,
+        STORAGE_KEYS.INSTALL_REPORT_ACCEPTED,
+      ].map(
         (key) => AsyncStorage.removeItem(key),
       ),
     );
@@ -450,10 +461,20 @@ export class LinkFortySDK {
 
   /**
    * Whether the server has accepted this install's report (on this or an
-   * earlier launch)
+   * earlier launch): an install ID is stored, or a report got a 2xx response.
+   *
+   * Until then every launch reports the install, so a failed report is
+   * retried. This also recovers devices where a version up to 1.9.0 set the
+   * first-launch flag but its report failed (flag set, no install ID): they
+   * report once after upgrading. A device with an install ID never reports
+   * again.
    */
   private async isInstallReported(): Promise<boolean> {
-    return (await AsyncStorage.getItem(STORAGE_KEYS.INSTALL_REPORTED)) !== null;
+    const [installId, accepted] = await Promise.all([
+      AsyncStorage.getItem(STORAGE_KEYS.INSTALL_ID),
+      AsyncStorage.getItem(STORAGE_KEYS.INSTALL_REPORT_ACCEPTED),
+    ]);
+    return installId !== null || accepted !== null;
   }
 
   /**
@@ -526,6 +547,7 @@ export class LinkFortySDK {
       }
 
       // The server accepted the report: don't report this install again
+      await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_REPORT_ACCEPTED, 'true');
       await AsyncStorage.setItem(STORAGE_KEYS.INSTALL_REPORTED, 'true');
 
       // If attributed, store deep link data

@@ -159,6 +159,63 @@ describe('LinkFortySDK install report', () => {
   });
 });
 
+describe('LinkFortySDK recovery of a device whose earlier report failed', () => {
+  // What versions up to 1.9.0 left behind when the first-launch report failed:
+  // the first-launch flag set, but no install ID
+  function stuckDevice() {
+    store['@linkforty:first_launch'] = 'true';
+  }
+
+  it('reports the install once, stores the install ID and tracks events', async () => {
+    stuckDevice();
+    const sdk = new LinkFortySDK();
+    await sdk.init(config);
+    await sdk.trackEvent('signup');
+
+    expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(1);
+    expect(store['@linkforty:install_id']).toBe(INSTALL_ID);
+    const [[, init]] = calls(fetchMock, '/api/sdk/v1/event');
+    expect(JSON.parse(String(init?.body)).installId).toBe(INSTALL_ID);
+
+    await new LinkFortySDK().init(config);
+    expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(1);
+  });
+
+  it('keeps retrying while the recovery report fails', async () => {
+    stuckDevice();
+    fetchMock.mockImplementation(networkDown);
+    await new LinkFortySDK().init(config);
+
+    fetchMock.mockImplementation(async () => jsonResponse(200, organicInstall));
+    const relaunch = new LinkFortySDK();
+    await relaunch.init(config);
+
+    expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(2);
+    expect(await relaunch.getInstallId()).toBe(INSTALL_ID);
+  });
+
+  it('recovers at most once after a 2xx response without an install ID', async () => {
+    stuckDevice();
+    fetchMock.mockImplementation(async () => jsonResponse(200, { ...organicInstall, installId: undefined }));
+    await new LinkFortySDK().init(config);
+    await new LinkFortySDK().init(config);
+    await new LinkFortySDK().init(config);
+
+    expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(1);
+  });
+
+  it('never reports again on a device that has an install ID', async () => {
+    store['@linkforty:first_launch'] = 'true';
+    store['@linkforty:install_id'] = INSTALL_ID;
+    const sdk = new LinkFortySDK();
+    await sdk.init(config);
+    await new LinkFortySDK().init(config);
+
+    expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(0);
+    expect(await sdk.getInstallId()).toBe(INSTALL_ID);
+  });
+});
+
 function logged(): string {
   const spies = [console.log, console.warn, console.error] as unknown as ReturnType<typeof vi.fn>[];
   return spies

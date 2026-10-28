@@ -180,6 +180,8 @@ Initialize the SDK. Must be called before any other method. Calling it a second 
 
 On the first launch it reports the install (and on Android waits up to 2 seconds for the Google Play install referrer) before it resolves. If the report fails (no connection, a server error), it is reported again on the next launch, and so on until the server accepts it; until then there is no install ID and `trackEvent()` sends nothing.
 
+**Upgrading from 1.9.0 or earlier:** those versions never retried a failed first-launch install report, which left the device without an install ID, so its events were dropped. After the upgrade, such a device reports its install once. It appears as an install dated at the upgrade, usually organic, because the click that led to the original install is normally outside the attribution window by then. Devices that already have an install ID never report again.
+
 ```typescript
 await LinkForty.init({
   baseUrl: 'https://api.linkforty.com', // Required
