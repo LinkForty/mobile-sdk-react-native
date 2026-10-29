@@ -1,3 +1,7 @@
+## 1.10.0 (2026-10-29)
+
+* feat: register link handlers during init(), bound every request, and report how the install report e ([977d01d](https://github.com/LinkForty/mobile-sdk-react-native/commit/977d01d)), closes [#16](https://github.com/LinkForty/mobile-sdk-react-native/issues/16)
+
 ## <small>1.9.2 (2026-10-28)</small>
 
 * fix: retry failed install reports, React Navigation 7 ref types, debug-only logging, peer deps (#15) ([b39eeed](https://github.com/LinkForty/mobile-sdk-react-native/commit/b39eeed)), closes [#15](https://github.com/LinkForty/mobile-sdk-react-native/issues/15)
