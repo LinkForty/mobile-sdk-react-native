@@ -31,6 +31,14 @@ export interface LinkFortyConfig {
   /** Custom attribution window in days (default: 7) */
   attributionWindow?: number;
   /**
+   * How long a request to the server may take, in milliseconds, before it is
+   * abandoned (default: 10000). Applies to every request the SDK makes: the
+   * install report, link lookups, events and `createLink()`. React Native sets
+   * no network timeout of its own on Android, so without this a server that
+   * accepts a connection and never answers would leave `init()` pending.
+   */
+  requestTimeoutMs?: number;
+  /**
    * Auto-emit `screen_view` events from React Navigation state (no manual
    * per-screen calls). Requires `navigationRef`. Off by default.
    *
@@ -274,9 +282,31 @@ export interface EventData {
 }
 
 /**
- * Callback function for deferred deep links
+ * How the launch's install report ended, passed to the deferred deep link
+ * callback with the link data.
+ *
+ * - `attributed`: the server matched the install to a link click; the data
+ *   is that link's.
+ * - `organic`: the server accepted the report and matched no click.
+ * - `failed`: the report did not reach the server or was refused (`error`
+ *   says why). The install is reported again on the next launch, which calls
+ *   the callback again with that report's result.
  */
-export type DeferredDeepLinkCallback = (deepLinkData: DeepLinkData | null) => void;
+export interface DeferredDeepLinkResult {
+  status: 'attributed' | 'organic' | 'failed';
+  /** Why the report failed; set only with status `failed` */
+  error?: Error;
+}
+
+/**
+ * Callback function for deferred deep links. `result` tells an attributed
+ * install, an organic one and a failed report apart; a callback that takes
+ * only the data keeps working.
+ */
+export type DeferredDeepLinkCallback = (
+  deepLinkData: DeepLinkData | null,
+  result: DeferredDeepLinkResult,
+) => void;
 
 /**
  * Callback function for direct deep links

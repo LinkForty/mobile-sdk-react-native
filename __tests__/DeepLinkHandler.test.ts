@@ -111,4 +111,46 @@ describe('LinkFortySDK.onDeepLink', () => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
+
+  it('registered right after init() without awaiting it, keeps one listener and learns the link hosts', async () => {
+    const LINK_HOST_URL = 'https://acme.toapp.me/abc123';
+    const resolved = { shortCode: 'abc123', linkId: 'link-1', customParameters: { route: 'promo' } };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.endsWith('/api/sdk/v1/link-domains')) {
+        return { ok: true, status: 200, json: async () => ({ domains: ['acme.toapp.me'] }) };
+      }
+      if (url.includes('/api/sdk/v1/resolve/')) {
+        return { ok: true, status: 200, json: async () => resolved };
+      }
+      return { ok: true, status: 200, json: async () => ({ installId: 'i-1', attributed: false }) };
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const sdk = new LinkFortySDK();
+    const callback = vi.fn();
+    const init = sdk.init({ baseUrl: BASE_URL, appToken: 'at_00000000000000000000000000000000' });
+    sdk.onDeepLink(callback);
+    await init;
+    await flush();
+
+    expect(linking.count()).toBe(1);
+
+    linking.emit(LINK_HOST_URL);
+    await vi.waitFor(() => expect(callback).toHaveBeenCalledTimes(1));
+    expect(callback).toHaveBeenCalledWith(LINK_HOST_URL, expect.objectContaining(resolved));
+
+    // Registering again after init() still replaces the callback, with one listener
+    const replacement = vi.fn();
+    sdk.onDeepLink(replacement);
+    await flush();
+    expect(linking.count()).toBe(1);
+    linking.emit(OTHER_URL);
+    await flush();
+    expect(replacement).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledTimes(1);
+
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
 });
