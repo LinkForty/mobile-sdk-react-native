@@ -176,6 +176,28 @@ describe('LinkFortySDK install report', () => {
     await expect(sdk.init(config)).rejects.toThrow('app bug');
     expect(callback).toHaveBeenCalledTimes(1);
     expect(logged()).not.toContain('Failed to report install');
+
+    // The SDK itself finished initializing before the callback ran
+    await sdk.trackEvent('after');
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(1);
+  });
+
+  it('does not make an awaited init() wait on the sends of held events', async () => {
+    let releaseEvent!: () => void;
+    fetchMock.mockImplementation((url: string) =>
+      url.endsWith('/api/sdk/v1/event')
+        ? new Promise<Response>((resolve) => {
+            releaseEvent = () => resolve(jsonResponse(200, {}));
+          })
+        : Promise.resolve(jsonResponse(200, organicInstall)),
+    );
+    const sdk = new LinkFortySDK();
+    const init = sdk.init(config);
+    void sdk.trackEvent('held');
+    await init;
+
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(1);
+    releaseEvent();
   });
 
   it('names the status when an error response has no JSON body', async () => {

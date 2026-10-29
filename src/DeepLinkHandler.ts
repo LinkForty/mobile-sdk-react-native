@@ -25,6 +25,8 @@ export class DeepLinkHandler {
   private readonly debug: boolean;
   /** The `Linking` 'url' subscription, added once and removed by cleanup() */
   private subscription: { remove: () => void } | null = null;
+  /** Whether the launch URL has been asked for; it is handled once per handler */
+  private initialUrlChecked = false;
 
   /**
    * @param options.debug - Log each link handled, its resolution and fallbacks
@@ -91,7 +93,8 @@ export class DeepLinkHandler {
 
   /**
    * Initialize deep link listener. Calling it again replaces the callback
-   * (the newest one receives links) without adding a second listener.
+   * (the newest one receives links) without adding a second listener or
+   * delivering the launch URL again.
    * @param baseUrl - LinkForty instance base URL for detecting LinkForty URLs
    * @param callback - Callback invoked with parsed/resolved deep link data
    * @param resolveFn - Optional function to resolve LinkForty URLs via the server API
@@ -115,7 +118,10 @@ export class DeepLinkHandler {
       this.subscription = Linking.addEventListener('url', this.handleDeepLink);
     }
 
-    // Check if app was opened via deep link
+    // Check if app was opened via deep link (once: a later initialize() must
+    // not deliver the launch URL a second time)
+    if (this.initialUrlChecked) return;
+    this.initialUrlChecked = true;
     Linking.getInitialURL().then((url) => {
       this.log('getInitialURL result:', url);
       if (url) {
@@ -134,6 +140,7 @@ export class DeepLinkHandler {
     this.subscription?.remove();
     this.subscription = null;
     this.callback = null;
+    this.initialUrlChecked = false;
   }
 
   /**

@@ -28,6 +28,12 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 10_000;
 /** How many events tracked while init() runs are held for it to finish. */
 const PENDING_EVENT_LIMIT = 100;
 
+/** What a launch's install report delivers to the deferred deep link callback. */
+interface DeferredOutcome {
+  data: DeepLinkData | null;
+  result: DeferredDeepLinkResult;
+}
+
 /** An event tracked before init() finished, sent once the install ID is known. */
 interface PendingEvent {
   name: string;
@@ -71,19 +77,29 @@ export class LinkFortySDK {
   private pendingEvents: PendingEvent[] = [];
   /** Whether this launch has already logged that storage is unavailable */
   private storageErrorLogged = false;
+  /** The first init() call's promise; later calls return it */
+  private initPromise: Promise<void> | null = null;
 
   /**
    * Initialize the SDK. Resolves once the install is reported (or the report
    * has failed) and the workspace's link hosts are being learned. Never
    * rejects for a network or storage failure; a thrown error can only come
    * from the app's own onDeferredDeepLink callback.
+   *
+   * A second call, even one made while the first is still running (React 18
+   * StrictMode runs effects twice in development), logs a warning and returns
+   * the first call's promise, so there is only ever one handler and listener.
    */
-  async init(config: LinkFortyConfig): Promise<void> {
-    if (this.initialized) {
+  init(config: LinkFortyConfig): Promise<void> {
+    if (this.initPromise) {
       console.warn('LinkForty SDK already initialized');
-      return;
+      return this.initPromise;
     }
+    this.initPromise = this.initialize(config);
+    return this.initPromise;
+  }
 
+  private async initialize(config: LinkFortyConfig): Promise<void> {
     // Everything onDeepLink() needs is set before the first await, so an app
     // may call it right after init() without awaiting it: the handler it
     // registers on is this one, and it is given the link hosts below, which
@@ -112,6 +128,10 @@ export class LinkFortySDK {
     this.attribution = new AttributionContext({ debug: config.debug });
     await this.attribution.load();
 
+    // The deferred deep link, delivered once the SDK is initialized (below),
+    // so an app callback that throws leaves a working SDK behind.
+    let deferred: DeferredOutcome | null = null;
+
     if (await this.isInstallReported()) {
       // Load cached install data
       await this.loadInstallData();
@@ -120,7 +140,7 @@ export class LinkFortySDK {
       // the deferred deep link. With the first-launch flag already set, this
       // is a device recovering from a report that failed on 1.9.0 or earlier.
       const recovery = (await this.readStorage(STORAGE_KEYS.INSTALL_REPORTED)) !== null;
-      await this.reportInstall({ recovery });
+      deferred = await this.reportInstall({ recovery });
     }
 
     // Start auto screen-view tracking if requested. Screen views flow through
@@ -157,7 +177,12 @@ export class LinkFortySDK {
       console.log('[LinkForty] SDK initialized successfully');
     }
 
-    await this.flushPendingEvents();
+    // sendEvent never rejects, so awaiting init() doesn't wait on the sends
+    void this.flushPendingEvents();
+
+    if (deferred) {
+      this.deferredDeepLink.deliver(deferred.data, deferred.result);
+    }
   }
 
   /**
@@ -585,21 +610,23 @@ export class LinkFortySDK {
   /**
    * Report app installation to LinkForty backend. Marks the install reported
    * only once the server accepts it; on failure the next launch reports again.
+   * Returns what to deliver to the deferred deep link callback, or null for a
+   * recovery report, which delivers nothing.
    *
    * A recovery report (a device whose report failed on 1.9.0 or earlier) only
    * restores the install ID: it doesn't call the deferred deep link callback
    * (the user has been using the app, so routing them like a fresh install
    * would be wrong), save link data or set the link credited for events.
    */
-  private async reportInstall({ recovery = false }: { recovery?: boolean } = {}): Promise<void> {
+  private async reportInstall({ recovery = false }: { recovery?: boolean } = {}): Promise<DeferredOutcome | null> {
     if (!this.config) {
-      return;
+      return null;
     }
 
-    // Delivered once, after the try/catch, so an app callback that throws
-    // surfaces as such instead of being logged as a failed report and
-    // followed by a second, contradicting delivery.
-    let outcome: { data: DeepLinkData | null; result: DeferredDeepLinkResult } | null = null;
+    // Delivered by init() once, outside this try/catch, so an app callback
+    // that throws surfaces as such instead of being logged as a failed report
+    // and followed by a second, contradicting delivery.
+    let outcome: DeferredOutcome | null = null;
 
     try {
       // Collect device fingerprint, and on Android the Play install referrer,
@@ -673,7 +700,7 @@ export class LinkFortySDK {
         if (this.config.debug) {
           console.log('[LinkForty] Install ID restored; link data from this report is not used');
         }
-        return;
+        return null;
       }
 
       // If attributed, store deep link data
@@ -714,9 +741,7 @@ export class LinkFortySDK {
       };
     }
 
-    if (outcome && !recovery) {
-      this.deferredDeepLink.deliver(outcome.data, outcome.result);
-    }
+    return recovery ? null : outcome;
   }
 
   /**

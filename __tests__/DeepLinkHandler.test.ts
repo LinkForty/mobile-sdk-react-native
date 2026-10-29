@@ -60,6 +60,28 @@ describe('DeepLinkHandler listener', () => {
     expect(second).toHaveBeenCalledWith(OTHER_URL, null);
   });
 
+  it('delivers the launch URL once, however often it is initialized', async () => {
+    const LAUNCH_URL = 'myapp://from-launch';
+    linking.getInitialURL.mockClear();
+    linking.getInitialURL.mockResolvedValue(LAUNCH_URL);
+    try {
+      const handler = new DeepLinkHandler();
+      const first = vi.fn();
+      const second = vi.fn();
+      handler.initialize(BASE_URL, first);
+      await flush();
+      handler.initialize(BASE_URL, second);
+      await flush();
+
+      expect(linking.getInitialURL).toHaveBeenCalledTimes(1);
+      expect(first).toHaveBeenCalledWith(LAUNCH_URL, null);
+      expect(second).not.toHaveBeenCalled();
+    } finally {
+      linking.getInitialURL.mockResolvedValue(null);
+      linking.getInitialURL.mockClear();
+    }
+  });
+
   it('cleanup() removes only its own listener, not the app\'s', async () => {
     const appListener = vi.fn();
     linking.addEventListener('url', appListener);
@@ -149,6 +171,35 @@ describe('LinkFortySDK.onDeepLink', () => {
     await flush();
     expect(replacement).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledTimes(1);
+
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it('a second init() while the first runs keeps one listener and one delivery per link', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, status: 200, json: async () => ({ installId: 'i-1', attributed: false }) })));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    // What React 18 StrictMode does to an effect in development: run it twice
+    const sdk = new LinkFortySDK();
+    const first = vi.fn();
+    const second = vi.fn();
+    const init1 = sdk.init({ baseUrl: BASE_URL });
+    sdk.onDeepLink(first);
+    const init2 = sdk.init({ baseUrl: BASE_URL });
+    sdk.onDeepLink(second);
+    expect(init2).toBe(init1);
+    await init2;
+    await flush();
+
+    expect(linking.count()).toBe(1);
+    expect(console.warn).toHaveBeenCalledWith('LinkForty SDK already initialized');
+
+    linking.emit(OTHER_URL);
+    await flush();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).toHaveBeenCalledTimes(1);
 
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
