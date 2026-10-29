@@ -31,6 +31,7 @@ export type {
   NavigationRouteLike,
   NavigationContainerRefLike,
   DeferredDeepLinkCallback,
+  DeferredDeepLinkResult,
   DeepLinkCallback,
   ResolveFunction,
   CreateLinkOptions,

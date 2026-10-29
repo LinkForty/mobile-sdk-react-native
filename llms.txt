@@ -48,6 +48,8 @@ interface LinkFortyConfig {
   debug?: boolean;
   /** Attribution window in days (default: 7) */
   attributionWindow?: number;
+  /** How long any request may take before it is abandoned, in ms (default: 10000) */
+  requestTimeoutMs?: number;
   /** Emit screen_view events from React Navigation (opt-in); requires navigationRef */
   autoTrackNavigation?: boolean | { captureParams?: string[]; debounceMs?: number };
   /** React Navigation container ref (createNavigationContainerRef()) */
@@ -135,7 +137,9 @@ import LinkFortySDK from '@linkforty/mobile-sdk-react-native';
 
 ### init(config: LinkFortyConfig): Promise\<void\>
 
-Initialize the SDK. Must be called before any other method. Call this early in your app lifecycle (App.tsx or index.js), and await it before calling onDeepLink(): onDeepLink() throws if init() was never called, and one registered while init() is still running only recognizes links on the baseUrl host. Calling init() twice logs a warning and does nothing.
+Initialize the SDK. Must be called before any other method. Call this early in your app lifecycle (App.tsx or index.js). onDeepLink() and onDeferredDeepLink() may be called right after it without awaiting it; onDeepLink() throws only if init() was never called. A link handled before the SDK has learned the workspace's link hosts waits for them, up to 3 seconds. Calling init() twice logs a warning and does nothing.
+
+init() always settles: every request is abandoned after requestTimeoutMs (default 10 seconds; React Native sets no network timeout on Android), the user agent lookup after 3 seconds (a generated one is sent instead), and a network failure, timeout or unavailable storage is logged, never thrown. It rejects only with an error thrown by the app's own onDeferredDeepLink callback.
 
 ```typescript
 await LinkFortySDK.init({
@@ -144,6 +148,7 @@ await LinkFortySDK.init({
   apiKey: 'lf_live_abc123',   // optional — only for createLink(); a secret
   debug: __DEV__,
   attributionWindow: 7,        // days
+  requestTimeoutMs: 10000,     // ms; default
 });
 ```
 
@@ -164,23 +169,25 @@ LinkFortySDK.onDeepLink((url, data) => {
 
 ### onDeferredDeepLink(callback: DeferredDeepLinkCallback): void
 
-Register a callback for deferred deep links — fires once, on the launch that reports the install (the first launch, or a later one if that report failed): with the link's data if the install was attributed to a link click, or null for an organic install. A launch whose report fails also calls it with null. This enables routing users to specific content after they install.
+Register a callback for deferred deep links — fires once, on the launch that reports the install (the first launch, or a later one if that report failed): with the link's data if the install was attributed to a link click, or null for an organic install. A launch whose report fails also calls it with null. The second argument, `result: { status: 'attributed' | 'organic' | 'failed', error? }`, says which; with `failed`, `error` is the failure (an Error with `status` for an HTTP error response, `code: 'timeout'` for an abandoned request) and the next launch reports again. A callback that takes only `data` keeps working. This enables routing users to specific content after they install.
 
 ```typescript
-LinkFortySDK.onDeferredDeepLink((data) => {
+LinkFortySDK.onDeferredDeepLink((data, result) => {
   if (data) {
     console.log('Deferred deep link:', data.shortCode);
     console.log('UTM source:', data.utmParameters?.source);
     if (data.customParameters?.route === 'product') {
       navigation.navigate('Product', { id: data.customParameters.productId });
     }
+  } else if (result.status === 'failed') {
+    console.warn('Install report failed, retried on the next launch:', result.error);
   }
 });
 ```
 
 ### trackEvent(name: string, properties?: Record\<string, any\>): Promise\<void\>
 
-Track in-app events for attribution and conversion analysis. Needs the install ID from the install report (sent on first launch, and again on each later launch until the server accepts it); without it the call logs a warning and sends nothing. Devices whose first-launch report failed on SDK 1.9.0 or earlier (no install ID) report the install once after upgrading; it appears as an install dated at the upgrade, usually organic, and only restores the install ID: it does not call onDeferredDeepLink, save link data for getInstallData(), or credit a link for later events. There is no offline queue: a failed send is logged and dropped, not retried.
+Track in-app events for attribution and conversion analysis. Needs the install ID from the install report (sent on first launch, and again on each later launch until the server accepts it); without it the call logs a warning and sends nothing. An event tracked while init() is still running is held (up to 100) and sent with its original timestamp once init() has the install ID, or dropped with one warning if that launch's report fails. Devices whose first-launch report failed on SDK 1.9.0 or earlier (no install ID) report the install once after upgrading; it appears as an install dated at the upgrade, usually organic, and only restores the install ID: it does not call onDeferredDeepLink, save link data for getInstallData(), or credit a link for later events. There is no offline queue: a failed send is logged and dropped, not retried.
 
 ```typescript
 await LinkFortySDK.trackEvent('purchase', {

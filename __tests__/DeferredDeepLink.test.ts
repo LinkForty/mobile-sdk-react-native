@@ -3,34 +3,46 @@ import { DeferredDeepLink, deferredDeepLinkFromInstall } from '../src/DeferredDe
 import type { DeepLinkData, InstallAttributionResponse } from '../src/types';
 
 const data = { shortCode: 'abc123', linkId: 'link-1' } as DeepLinkData;
+const attributed = { status: 'attributed' } as const;
+const organic = { status: 'organic' } as const;
 
 describe('DeferredDeepLink', () => {
   it('calls a callback registered before the install is reported', () => {
     const deferred = new DeferredDeepLink();
     const callback = vi.fn();
     deferred.register(callback);
-    deferred.deliver(data);
+    deferred.deliver(data, attributed);
 
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(callback).toHaveBeenCalledWith(data);
+    expect(callback).toHaveBeenCalledWith(data, attributed);
   });
 
   it('calls a callback registered after the install is reported', () => {
     const deferred = new DeferredDeepLink();
-    deferred.deliver(data);
+    deferred.deliver(data, attributed);
     const callback = vi.fn();
     deferred.register(callback);
 
-    expect(callback).toHaveBeenCalledWith(data);
+    expect(callback).toHaveBeenCalledWith(data, attributed);
   });
 
   it('delivers null for an organic install registered after init', () => {
     const deferred = new DeferredDeepLink();
-    deferred.deliver(null);
+    deferred.deliver(null, organic);
     const callback = vi.fn();
     deferred.register(callback);
 
-    expect(callback).toHaveBeenCalledWith(null);
+    expect(callback).toHaveBeenCalledWith(null, organic);
+  });
+
+  it('tells a failed report apart from an organic install', () => {
+    const deferred = new DeferredDeepLink();
+    const callback = vi.fn();
+    deferred.register(callback);
+    const error = new Error('HTTP 503');
+    deferred.deliver(null, { status: 'failed', error });
+
+    expect(callback).toHaveBeenCalledWith(null, { status: 'failed', error });
   });
 
   it('calls nothing on a launch that does not report the install', () => {

@@ -131,7 +131,10 @@ describe('LinkFortySDK install report', () => {
     const first = vi.fn();
     offline.onDeferredDeepLink(first);
     await offline.init(config);
-    expect(first).toHaveBeenCalledWith(null);
+    expect(first).toHaveBeenCalledWith(null, {
+      status: 'failed',
+      error: expect.objectContaining({ message: 'Network request failed' }),
+    });
 
     fetchMock.mockImplementation(async () =>
       jsonResponse(200, {
@@ -147,7 +150,83 @@ describe('LinkFortySDK install report', () => {
     relaunch.onDeferredDeepLink(second);
     await relaunch.init(config);
 
-    expect(second).toHaveBeenCalledWith(expect.objectContaining({ shortCode: 'abc', linkId: 'link-1' }));
+    expect(second).toHaveBeenCalledWith(
+      expect.objectContaining({ shortCode: 'abc', linkId: 'link-1' }),
+      { status: 'attributed' },
+    );
+  });
+
+  it('reports an organic install as such', async () => {
+    const sdk = new LinkFortySDK();
+    const callback = vi.fn();
+    sdk.onDeferredDeepLink(callback);
+    await sdk.init(config);
+
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(callback).toHaveBeenCalledWith(null, { status: 'organic' });
+  });
+
+  it('delivers once even when the app callback throws, and init() rejects with that error', async () => {
+    const sdk = new LinkFortySDK();
+    const callback = vi.fn(() => {
+      throw new Error('app bug');
+    });
+    sdk.onDeferredDeepLink(callback);
+
+    await expect(sdk.init(config)).rejects.toThrow('app bug');
+    expect(callback).toHaveBeenCalledTimes(1);
+    expect(logged()).not.toContain('Failed to report install');
+
+    // The SDK itself finished initializing before the callback ran
+    await sdk.trackEvent('after');
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(1);
+  });
+
+  it('does not make an awaited init() wait on the sends of held events', async () => {
+    let releaseEvent!: () => void;
+    fetchMock.mockImplementation((url: string) =>
+      url.endsWith('/api/sdk/v1/event')
+        ? new Promise<Response>((resolve) => {
+            releaseEvent = () => resolve(jsonResponse(200, {}));
+          })
+        : Promise.resolve(jsonResponse(200, organicInstall)),
+    );
+    const sdk = new LinkFortySDK();
+    const init = sdk.init(config);
+    void sdk.trackEvent('held');
+    await init;
+
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(1);
+    releaseEvent();
+  });
+
+  it('names the status when an error response has no JSON body', async () => {
+    fetchMock.mockImplementation(async () => ({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new SyntaxError('Unexpected token <');
+      },
+    }) as unknown as Response);
+    const sdk = new LinkFortySDK();
+    const callback = vi.fn();
+    sdk.onDeferredDeepLink(callback);
+    await sdk.init(config);
+
+    const [[, result]] = callback.mock.calls;
+    expect(result.status).toBe('failed');
+    expect(result.error.message).toBe('HTTP 502');
+    expect(result.error.status).toBe(502);
+  });
+
+  it("names the status and the body's message on an error response", async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(400, { error: 'Validation failed' }));
+    const sdk = new LinkFortySDK();
+    const callback = vi.fn();
+    sdk.onDeferredDeepLink(callback);
+    await sdk.init(config);
+
+    expect(callback.mock.calls[0][1].error.message).toBe('HTTP 400: Validation failed');
   });
 
   it('does not report again after a 2xx response without an install id', async () => {
@@ -156,6 +235,148 @@ describe('LinkFortySDK install report', () => {
     await new LinkFortySDK().init(config);
 
     expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(1);
+  });
+});
+
+describe('LinkFortySDK request deadline', () => {
+  /** A fetch that never answers until its signal aborts, as a half-open connection does. */
+  function hangingFetch(): typeof fetch {
+    return vi.fn((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const error = new Error('Aborted');
+          error.name = 'AbortError';
+          reject(error);
+        });
+      }),
+    ) as unknown as typeof fetch;
+  }
+
+  it('abandons an install report that never answers and reports the failure', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', hangingFetch());
+      const sdk = new LinkFortySDK();
+      const callback = vi.fn();
+      sdk.onDeferredDeepLink(callback);
+
+      const init = sdk.init({ ...config, requestTimeoutMs: 1000 });
+      await vi.advanceTimersByTimeAsync(999);
+      expect(callback).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await init;
+
+      expect(callback).toHaveBeenCalledWith(null, {
+        status: 'failed',
+        error: expect.objectContaining({
+          code: 'timeout',
+          message: 'Request timed out after 1000ms: POST /api/sdk/v1/install',
+        }),
+      });
+      expect(await sdk.getInstallId()).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits up to 10 seconds by default', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.stubGlobal('fetch', hangingFetch());
+      const sdk = new LinkFortySDK();
+      const callback = vi.fn();
+      sdk.onDeferredDeepLink(callback);
+
+      const init = sdk.init(config);
+      await vi.advanceTimersByTimeAsync(9_999);
+      expect(callback).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+      await init;
+
+      expect(callback.mock.calls[0][1].status).toBe('failed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('LinkFortySDK events tracked while init() runs', () => {
+  it('sends them, with the time they were tracked, once the install ID is known', async () => {
+    const sdk = new LinkFortySDK();
+    const init = sdk.init(config);
+    const before = new Date().toISOString();
+    await sdk.trackEvent('opened_from_cold_start', { screen: 'home' });
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(0);
+    expect(console.warn).not.toHaveBeenCalled();
+
+    await init;
+
+    const events = calls(fetchMock, '/api/sdk/v1/event');
+    expect(events).toHaveLength(1);
+    const body = JSON.parse(String(events[0][1]?.body));
+    expect(body).toMatchObject({
+      installId: INSTALL_ID,
+      eventName: 'opened_from_cold_start',
+      eventData: { screen: 'home' },
+    });
+    expect(body.timestamp >= before).toBe(true);
+  });
+
+  it('drops them with one warning when the report fails', async () => {
+    fetchMock.mockImplementation(networkDown);
+    const sdk = new LinkFortySDK();
+    const init = sdk.init(config);
+    await sdk.trackEvent('first');
+    await sdk.trackEvent('second');
+    await init;
+
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(0);
+    expect(logged()).toContain('Cannot track 2 event(s)');
+  });
+
+  it('still drops an event tracked after init() without an install ID', async () => {
+    fetchMock.mockImplementation(networkDown);
+    const sdk = new LinkFortySDK();
+    await sdk.init(config);
+    await sdk.trackEvent('later');
+
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(0);
+    expect(logged()).toContain('Cannot track event');
+  });
+});
+
+describe('LinkFortySDK without working storage', () => {
+  function breakStorage() {
+    const asyncStorage = (storage as unknown as { default: Record<string, ReturnType<typeof vi.fn>> }).default;
+    const failure = new TypeError("Cannot read property 'getItem' of null");
+    asyncStorage.getItem.mockImplementation(() => Promise.reject(failure));
+    asyncStorage.setItem.mockImplementation(() => Promise.reject(failure));
+    return failure;
+  }
+
+  afterEach(() => {
+    const asyncStorage = (storage as unknown as { default: Record<string, ReturnType<typeof vi.fn>> }).default;
+    asyncStorage.getItem.mockImplementation((key: string) => Promise.resolve(store[key] ?? null));
+    asyncStorage.setItem.mockImplementation((key: string, value: string) => {
+      store[key] = value;
+      return Promise.resolve();
+    });
+  });
+
+  it('init() resolves, reports the install, delivers the deferred deep link and logs the cause once', async () => {
+    breakStorage();
+    const sdk = new LinkFortySDK();
+    const callback = vi.fn();
+    sdk.onDeferredDeepLink(callback);
+    await sdk.init(config);
+    await sdk.trackEvent('signup');
+
+    expect(calls(fetchMock, '/api/sdk/v1/install')).toHaveLength(1);
+    expect(callback).toHaveBeenCalledWith(null, { status: 'organic' });
+    expect(calls(fetchMock, '/api/sdk/v1/event')).toHaveLength(1);
+    const errors = (console.error as unknown as ReturnType<typeof vi.fn>).mock.calls;
+    expect(errors).toHaveLength(1);
+    expect(String(errors[0][0])).toContain('Storage is unavailable');
   });
 });
 
