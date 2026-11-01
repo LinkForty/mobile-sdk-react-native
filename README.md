@@ -624,7 +624,7 @@ MIT License - see [LICENSE](LICENSE) for details.
 
 ## Support
 
-- **Documentation:** [docs.linkforty.com](https://docs.linkforty.com)
+- **Documentation:** [docs.linkforty.com](https://go.linkforty.com/m0ycvnog/rn-sdk-docs)
 - **Issues:** [GitHub Issues](https://github.com/LinkForty/mobile-sdk-react-native/issues)
 - **Core Engine:** [LinkForty Core](https://github.com/LinkForty/core) — self-hosted open-source backend
-- **Hosted service:** [linkforty.com](https://linkforty.com) — dashboard, teams, and billing
+- **Hosted service:** [linkforty.com](https://go.linkforty.com/m0ycvnog/rn-sdk-cloud) — dashboard, teams, and billing
