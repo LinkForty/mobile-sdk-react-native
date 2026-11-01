@@ -1,3 +1,7 @@
+## <small>1.10.1 (2026-11-01)</small>
+
+* docs(readme): route the docs and hosted-service links through LinkForty short links (#17) ([fc30840](https://github.com/LinkForty/mobile-sdk-react-native/commit/fc30840)), closes [#17](https://github.com/LinkForty/mobile-sdk-react-native/issues/17)
+
 ## 1.10.0 (2026-10-29)
 
 * feat: register link handlers during init(), bound every request, and report how the install report e ([977d01d](https://github.com/LinkForty/mobile-sdk-react-native/commit/977d01d)), closes [#16](https://github.com/LinkForty/mobile-sdk-react-native/issues/16)
