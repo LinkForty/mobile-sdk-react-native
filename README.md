@@ -212,7 +212,7 @@ await LinkForty.init({
 
 Listen for direct deep links. Called when the app is opened via a Universal Link (iOS) or App Link (Android). Calling `onDeepLink()` again replaces the callback: only the newest one is called, once per link.
 
-When the URL is a LinkForty link, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing. Any other URL reaches the callback with `data` set to `null`.
+When the URL is a LinkForty link, the SDK automatically resolves it via the server to retrieve the full link data including `customParameters`, UTM parameters, and metadata. If resolution fails, the SDK falls back to local URL parsing. The link's query parameters are passed to the server with the request, so the click is recorded with the same parameters a browser click of the link would carry. Any other URL reaches the callback with `data` set to `null`.
 
 A LinkForty link is an `http(s)` URL on your `baseUrl` host or, with `appToken` set, on one of your workspace's link hosts. The SDK learns those hosts from the server at launch (`GET /api/sdk/v1/link-domains`) and saves them for the next one. On the hosted service they are your workspace's `toapp.me` subdomain and verified custom domains, and with `appToken` set a lookup answers only with your own workspace's links. A server without that endpoint (such as self-hosted LinkForty Core) leaves the SDK looking up links on the `baseUrl` host only, so point `baseUrl` at the host your links use.
 
@@ -449,7 +449,7 @@ await LinkForty.clearData();
 To match an install or a direct open to a link click, the SDK sends:
 
 - **On the install report (first launch):** user agent, timezone, device language, screen width and height, platform (`ios`/`android`), OS version, and on Android the Google Play install referrer. The server also sees the request's IP address.
-- **On a direct deep link open:** the link's path, with timezone, language, screen size, platform and OS version.
+- **On a direct deep link open:** the link's path and query parameters, with timezone, language, screen size, platform and OS version.
 - **On each event:** the server-assigned install ID, the event name and the properties you pass, a timestamp, a session ID, and the link currently credited for the visit.
 - **On every request:** the SDK's name and version, `appToken` if set, and `apiKey` if set.
 
@@ -545,7 +545,7 @@ When a user taps a LinkForty URL and the app is already installed:
 
 1. The OS intercepts the URL via App Links (Android) or Universal Links (iOS) and opens your app directly
 2. The SDK receives the URL via React Native's `Linking` API
-3. The SDK calls your LinkForty server's resolve endpoint to retrieve the full link data (`customParameters`, UTM params, etc.)
+3. The SDK calls your LinkForty server's resolve endpoint, passing the link's query parameters along, to retrieve the full link data (`customParameters`, UTM params, etc.)
 4. Your `onDeepLink` callback fires with the resolved data
 5. Your app navigates to the target screen
 

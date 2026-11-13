@@ -30,6 +30,7 @@ vi.mock('react-native-device-info', () => ({ default: {} }));
 
 import { DeepLinkHandler } from '../src/DeepLinkHandler';
 import { LinkFortySDK } from '../src/LinkFortySDK';
+import { FingerprintCollector } from '../src/FingerprintCollector';
 
 const BASE_URL = 'https://go.example.com';
 // Not a LinkForty URL, so the callback gets it straight away with null data
@@ -203,5 +204,85 @@ describe('LinkFortySDK.onDeepLink', () => {
 
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
+  });
+});
+
+describe('DeepLinkHandler resolve request', () => {
+  const FINGERPRINT = {
+    timezone: 'Europe/Paris',
+    language: 'fr-FR',
+    screenResolution: '390x844',
+    platform: 'ios',
+    osVersion: '18.1',
+  } as Awaited<ReturnType<typeof FingerprintCollector.collect>>;
+
+  async function resolvePathFor(url: string, fingerprint: 'ok' | 'fails' = 'ok'): Promise<string> {
+    const spy = vi.spyOn(FingerprintCollector, 'collect');
+    if (fingerprint === 'ok') spy.mockResolvedValue(FINGERPRINT);
+    else spy.mockRejectedValue(new Error('no device info'));
+
+    const resolveFn = vi.fn().mockResolvedValue({ shortCode: 'abc', linkId: 'link-1' });
+    const handler = new DeepLinkHandler();
+    handler.initialize(BASE_URL, vi.fn(), resolveFn);
+    linking.emit(url);
+    await vi.waitFor(() => expect(resolveFn).toHaveBeenCalledTimes(1));
+    handler.cleanup();
+    spy.mockRestore();
+    return resolveFn.mock.calls[0][0] as string;
+  }
+
+  function queryOf(path: string): Record<string, string> {
+    const query = path.includes('?') ? path.slice(path.indexOf('?') + 1) : '';
+    return Object.fromEntries(new URLSearchParams(query));
+  }
+
+  it("passes the link's query parameters along with the fingerprint", async () => {
+    const path = await resolvePathFor(`${BASE_URL}/abc?os_id=u1&utm_campaign=winback`);
+
+    expect(path.startsWith('/api/sdk/v1/resolve/abc?')).toBe(true);
+    expect(queryOf(path)).toEqual({
+      os_id: 'u1',
+      utm_campaign: 'winback',
+      fp_tz: 'Europe/Paris',
+      fp_lang: 'fr-FR',
+      fp_sw: '390',
+      fp_sh: '844',
+      fp_platform: 'ios',
+      fp_pv: '18.1',
+    });
+  });
+
+  it('keeps its own fingerprint values over fp_ parameters on the link', async () => {
+    const query = queryOf(await resolvePathFor(`${BASE_URL}/abc?fp_tz=evil&FP_LANG=evil&os_id=u1`));
+
+    expect(query.fp_tz).toBe('Europe/Paris');
+    expect(query.fp_lang).toBe('fr-FR');
+    expect(query.FP_LANG).toBeUndefined();
+    expect(query.os_id).toBe('u1');
+  });
+
+  it('encodes values once', async () => {
+    const query = queryOf(await resolvePathFor(`${BASE_URL}/abc?note=${encodeURIComponent('a b&c')}`));
+
+    expect(query.note).toBe('a b&c');
+  });
+
+  it('reads a literal "+" in the link as a space, as a server does, and keeps %2B as "+"', async () => {
+    const query = queryOf(await resolvePathFor(`${BASE_URL}/abc?iterable_id=a+b%40x.com&email=c%2Bd%40x.com`));
+
+    expect(query.iterable_id).toBe('a b@x.com');
+    expect(query.email).toBe('c+d@x.com');
+  });
+
+  it("passes the link's parameters when the fingerprint can't be collected", async () => {
+    const path = await resolvePathFor(`${BASE_URL}/tpl/abc?os_id=u1`, 'fails');
+
+    expect(path).toBe('/api/sdk/v1/resolve/tpl/abc?os_id=u1');
+  });
+
+  it('sends only the fingerprint for a link with no query', async () => {
+    const query = queryOf(await resolvePathFor(`${BASE_URL}/abc`));
+
+    expect(Object.keys(query).sort()).toEqual(['fp_lang', 'fp_platform', 'fp_pv', 'fp_sh', 'fp_sw', 'fp_tz']);
   });
 });
