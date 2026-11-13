@@ -83,6 +83,30 @@ export class DeepLinkHandler {
   }
 
   /**
+   * A link's query parameters as a server reads them from a browser click:
+   * "+" is a space, and a pair that can't be decoded is skipped.
+   */
+  private static linkQueryParams(url: string): Record<string, string> {
+    const hashIndex = url.indexOf('#');
+    const withoutHash = hashIndex === -1 ? url : url.substring(0, hashIndex);
+    const queryStart = withoutHash.indexOf('?');
+    const params: Record<string, string> = {};
+    if (queryStart === -1) return params;
+    for (const pair of withoutHash.substring(queryStart + 1).split('&')) {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex <= 0) continue;
+      try {
+        const key = decodeURIComponent(pair.substring(0, eqIndex).replace(/\+/g, ' '));
+        const value = decodeURIComponent(pair.substring(eqIndex + 1).replace(/\+/g, ' '));
+        if (value && !key.toLowerCase().startsWith('fp_')) params[key] = value;
+      } catch {
+        // Malformed percent-encoding: leave this pair out.
+      }
+    }
+    return params;
+  }
+
+  /**
    * Build a query string from key-value pairs without URLSearchParams.
    */
   private static buildQueryString(params: Record<string, string>): string {
@@ -198,8 +222,8 @@ export class DeepLinkHandler {
 
   /**
    * Resolve a LinkForty URL via the server API.
-   * Extracts the path from the URL, collects fingerprint data for click attribution,
-   * and calls the resolve endpoint.
+   * Extracts the path from the URL, passes the URL's query parameters along with
+   * fingerprint data for click attribution, and calls the resolve endpoint.
    */
   private async resolveURL(url: string): Promise<DeepLinkData | null> {
     if (!this.resolveFn) {
@@ -225,25 +249,29 @@ export class DeepLinkHandler {
       resolvePath = `/api/sdk/v1/resolve/${pathSegments[0]}`;
     }
 
+    // The link's own query parameters go along, as they would on a browser
+    // click of the same link. Fingerprint parameters are the SDK's to set.
+    const params = DeepLinkHandler.linkQueryParams(url);
+
     // Collect fingerprint data for click attribution
     try {
       const fingerprint = await FingerprintCollector.collect();
       const [sw, sh] = fingerprint.screenResolution.split('x');
-      const fpParams: Record<string, string> = {
-        fp_tz: fingerprint.timezone,
-        fp_lang: fingerprint.language,
-        fp_sw: sw,
-        fp_sh: sh,
-        fp_platform: fingerprint.platform,
-      };
+      params.fp_tz = fingerprint.timezone;
+      params.fp_lang = fingerprint.language;
+      params.fp_sw = sw;
+      params.fp_sh = sh;
+      params.fp_platform = fingerprint.platform;
       if (fingerprint.osVersion) {
-        fpParams.fp_pv = fingerprint.osVersion;
+        params.fp_pv = fingerprint.osVersion;
       }
-
-      resolvePath += `?${DeepLinkHandler.buildQueryString(fpParams)}`;
     } catch (error) {
       // If fingerprint collection fails, still resolve without it
       this.log('Fingerprint collection failed, resolving without fingerprint:', error);
+    }
+
+    if (Object.keys(params).length > 0) {
+      resolvePath += `?${DeepLinkHandler.buildQueryString(params)}`;
     }
 
     return this.resolveFn(resolvePath);
