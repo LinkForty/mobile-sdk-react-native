@@ -338,11 +338,13 @@ Events are sent once, straight away. An event tracked while `init()` is still ru
 
 ```typescript
 await LinkForty.trackEvent('purchase', {
-  amount: 99.99,
+  revenue: 99.99,
   currency: 'USD',
   productId: 'premium_plan',
 });
 ```
+
+To count an event as revenue, put the amount in a `revenue` property, with an ISO 4217 `currency` code. Revenue reports read only `revenue`: an amount under any other name, such as `amount` or `price`, is stored with the event but not counted.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
