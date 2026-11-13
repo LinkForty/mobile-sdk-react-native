@@ -1,3 +1,7 @@
+## 1.11.0 (2026-11-13)
+
+* feat: pass the link's query parameters when resolving a link that opened the app (#19) ([d12f695](https://github.com/LinkForty/mobile-sdk-react-native/commit/d12f695)), closes [#19](https://github.com/LinkForty/mobile-sdk-react-native/issues/19)
+
 ## <small>1.10.2 (2026-11-13)</small>
 
 * docs(readme): put the purchase example's amount in the revenue property (#18) ([21db68f](https://github.com/LinkForty/mobile-sdk-react-native/commit/21db68f)), closes [#18](https://github.com/LinkForty/mobile-sdk-react-native/issues/18)
