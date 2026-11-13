@@ -1,3 +1,7 @@
+## <small>1.10.2 (2026-11-13)</small>
+
+* docs(readme): put the purchase example's amount in the revenue property (#18) ([21db68f](https://github.com/LinkForty/mobile-sdk-react-native/commit/21db68f)), closes [#18](https://github.com/LinkForty/mobile-sdk-react-native/issues/18)
+
 ## <small>1.10.1 (2026-11-01)</small>
 
 * docs(readme): route the docs and hosted-service links through LinkForty short links (#17) ([fc30840](https://github.com/LinkForty/mobile-sdk-react-native/commit/fc30840)), closes [#17](https://github.com/LinkForty/mobile-sdk-react-native/issues/17)
